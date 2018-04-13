@@ -1,0 +1,297 @@
+                                                             dscreen18                              01:09 Friday, April 13, 2018   1
+
+ 
+Obs flag02 flag05 flag07 flag09 flag10 flag11 flag12 flag13 flag14 flag15 flag17 flag18 flag19 flag20 flag24 flag25 flag27 flag28
+
+ 1     0      0      0      0      0      0      0      0      0      0      0      1      0      0      0      0      0      0  
+
+                                   LEGACY_
+Obs flag29 flag30 flag31 flag32   FACILITY      SUB_ORG_ID       CD_FAC_ID            DKEY     AGE_IN_DAYS SEX DISPOSITION
+
+ 1     0      0      0      0    101311230              24           23099      3669406603           24436  1  01                  
+
+                    BIRTH_                                                                                            ADMIT_ POA_
+Obs             LOS WEIGHT PRIM_PAYER           ADMIT_TYPE                 MS_DRG_ID          MDC_ID       TOTAL_CHRG SOURCE INDTR
+
+ 1                1      . 10                   3                                  .               .           308.20   1A     0  
+
+ 
+Obs MED_RECORD_NUMBER                                  ENCOUNTER_SETTING_CD   DISCH_DT     ADM_DT YEARS MONTHS DAYS AGE_CODE RACE_DB
+
+ 1  01034381                                           5                    11/22/2016 11/22/2016   66     0     0      3       6   
+
+ 
+Obs ACONIN  INDRG  INMDC  DMV  NPI  ZIP          _LABEL_          PX_CODE2              PX_CODE1              PX_CODE3
+
+ 1                                       ICD_PROCEDURE_CD_NUMBER  73560                 G0463                                     
+
+ 
+Obs PX_CODE4             PX_CODE7             PX_CODE5             PX_CODE6             PX_CODE15            PX_CODE14
+
+ 1                                                                                                                               
+
+ 
+Obs PX_CODE13            PX_CODE12            PX_CODE11            PX_CODE16            PX_CODE18            PX_CODE17
+
+ 1                                                                                                                               
+
+ 
+Obs PX_CODE19            PX_CODE10            PX_CODE9             PX_CODE8             PX_CODE24            PX_CODE23
+
+ 1                                                                                                                               
+
+ 
+Obs PX_CODE22            PX_CODE20            PX_CODE21            PX_CODE31            PX_CODE29            PX_CODE27
+
+ 1                                                                                                                               
+                                                             dscreen18                              01:09 Friday, April 13, 2018   2
+
+ 
+Obs PX_CODE25            PX_CODE30            PX_CODE28            PX_CODE26            PX_CODE32            PX_CODE34
+
+ 1                                                                                                                               
+
+ 
+Obs PX_CODE36            PX_CODE37            PX_CODE35            PX_CODE33            PX_CODE38            PX_CODE60
+
+ 1                                                                                                                               
+
+ 
+Obs PX_CODE66            PX_CODE63            PX_CODE64            PX_CODE62            PX_CODE59            PX_CODE61
+
+ 1                                                                                                                               
+
+ 
+Obs PX_CODE39            PX_CODE40            PX_CODE41            PX_CODE42            PX_CODE43            PX_CODE44
+
+ 1                                                                                                                               
+
+ 
+Obs PX_CODE45            PX_CODE46            PX_CODE47            PX_CODE48            PX_CODE49            PX_CODE50
+
+ 1                                                                                                                               
+
+ 
+Obs PX_CODE51            PX_CODE52            PX_CODE53            PX_CODE54            PX_CODE57            PX_CODE58
+
+ 1                                                                                                                               
+
+ 
+Obs PX_CODE55            PX_CODE56            PX_CODE65            PX_CODE67            PX_CODE69            PX_CODE71
+
+ 1                                                                                                                               
+
+ 
+Obs PX_CODE74            PX_CODE76            PX_CODE78            PX_CODE82            PX_CODE80            PX_CODE73
+
+ 1                                                                                                                               
+
+ 
+Obs PX_CODE68            PX_CODE70            PX_CODE72            PX_CODE75            PX_CODE77            PX_CODE79
+
+ 1                                                                                                                               
+                                                             dscreen18                              01:09 Friday, April 13, 2018   3
+
+ 
+Obs PX_CODE81            PX_CODE83            PX_CODE84            PX_CODE86            PX_CODE87            PX_CODE85
+
+ 1                                                                                                                               
+
+ 
+Obs PX_CODE89            PX_CODE91            PX_CODE93            PX_CODE96            PX_CODE88            PX_CODE95
+
+ 1                                                                                                                               
+
+ 
+Obs PX_CODE90            PX_CODE92            PX_CODE94            PX_CODE97            PX_CODE98              PX_DATE2   PX_DATE1
+
+ 1                                                                                                           11/22/2016 11/22/2016
+
+ 
+Obs   PX_DATE3   PX_DATE4   PX_DATE7   PX_DATE5   PX_DATE6  PX_DATE15  PX_DATE14  PX_DATE13  PX_DATE12  PX_DATE11  PX_DATE16
+
+ 1           .          .          .          .          .          .          .          .          .          .          .
+
+ 
+Obs  PX_DATE18  PX_DATE17  PX_DATE19  PX_DATE10   PX_DATE9   PX_DATE8  PX_DATE24  PX_DATE23  PX_DATE22  PX_DATE20  PX_DATE21
+
+ 1           .          .          .          .          .          .          .          .          .          .          .
+
+ 
+Obs  PX_DATE31  PX_DATE29  PX_DATE27  PX_DATE25  PX_DATE30  PX_DATE28  PX_DATE26  PX_DATE32  PX_DATE34  PX_DATE36  PX_DATE37
+
+ 1           .          .          .          .          .          .          .          .          .          .          .
+
+ 
+Obs  PX_DATE35  PX_DATE33  PX_DATE38  PX_DATE60  PX_DATE66  PX_DATE63  PX_DATE64  PX_DATE62  PX_DATE59  PX_DATE61  PX_DATE39
+
+ 1           .          .          .          .          .          .          .          .          .          .          .
+
+ 
+Obs  PX_DATE40  PX_DATE41  PX_DATE42  PX_DATE43  PX_DATE44  PX_DATE45  PX_DATE46  PX_DATE47  PX_DATE48  PX_DATE49  PX_DATE50
+
+ 1           .          .          .          .          .          .          .          .          .          .          .
+
+ 
+Obs  PX_DATE51  PX_DATE52  PX_DATE53  PX_DATE54  PX_DATE57  PX_DATE58  PX_DATE55  PX_DATE56  PX_DATE65  PX_DATE67  PX_DATE69
+
+ 1           .          .          .          .          .          .          .          .          .          .          .
+                                                             dscreen18                              01:09 Friday, April 13, 2018   4
+
+ 
+Obs  PX_DATE71  PX_DATE74  PX_DATE76  PX_DATE78  PX_DATE82  PX_DATE80  PX_DATE73  PX_DATE68  PX_DATE70  PX_DATE72  PX_DATE75
+
+ 1           .          .          .          .          .          .          .          .          .          .          .
+
+ 
+Obs  PX_DATE77  PX_DATE79  PX_DATE81  PX_DATE83  PX_DATE84  PX_DATE86  PX_DATE87  PX_DATE85  PX_DATE89  PX_DATE91  PX_DATE93
+
+ 1           .          .          .          .          .          .          .          .          .          .          .
+
+ 
+Obs  PX_DATE96   PX_DATE88   PX_DATE95   PX_DATE90   PX_DATE92   PX_DATE94   PX_DATE97   PX_DATE98  PROC_IND  DX_CODE1
+
+ 1           .           .           .           .           .           .           .           .     C      Z471                
+
+ 
+Obs DX_CODE2             DX_CODE3             DX_CODE4             DX_CODE5             DX_CODE6             DX_CODE7
+
+ 1  Z96651               Z471                 Z96651               Z96651                                                        
+
+ 
+Obs DX_CODE8             DX_CODE9             DX_CODE10            DX_CODE11            DX_CODE12            DX_CODE13
+
+ 1                                                                                                                               
+
+ 
+Obs DX_CODE14            DX_CODE15            DX_CODE16            DX_CODE17            DX_CODE18            DX_CODE19
+
+ 1                                                                                                                               
+
+ 
+Obs DX_CODE20            DX_CODE21            DX_CODE22            DX_CODE23            DX_CODE24            DX_CODE25
+
+ 1                                                                                                                               
+
+ 
+Obs DX_CODE26            DX_CODE27            DX_CODE28            DX_CODE29            DX_CODE30            DX_CODE31
+
+ 1                                                                                                                               
+
+ 
+Obs DX_CODE32            DX_CODE33            DX_CODE34            DX_CODE35            DX_CODE36            DX_CODE37
+
+ 1                                                                                                                               
+                                                             dscreen18                              01:09 Friday, April 13, 2018   5
+
+ 
+Obs DX_CODE38            DX_CODE39            DX_CODE40            DX_CODE41            DX_CODE42            DX_CODE43
+
+ 1                                                                                                                               
+
+ 
+Obs DX_CODE44            DX_CODE45            DX_CODE46            DX_CODE47            DX_CODE48            DX_CODE49
+
+ 1                                                                                                                               
+
+              POA_  POA_  POA_  POA_  POA_  POA_  POA_  POA_  POA_   POA_   POA_   POA_   POA_   POA_   POA_   POA_   POA_   POA_
+Obs DX_CODE50 CODE1 CODE2 CODE3 CODE4 CODE5 CODE6 CODE7 CODE8 CODE9 CODE10 CODE11 CODE12 CODE13 CODE14 CODE15 CODE16 CODE17 CODE18
+
+ 1                                                                                                                                
+
+     POA_   POA_   POA_   POA_   POA_   POA_   POA_   POA_   POA_   POA_   POA_   POA_   POA_   POA_   POA_   POA_   POA_   POA_
+Obs CODE19 CODE20 CODE21 CODE22 CODE23 CODE24 CODE25 CODE26 CODE27 CODE28 CODE29 CODE30 CODE31 CODE32 CODE33 CODE34 CODE35 CODE36
+
+ 1                                                                                                                               
+
+     POA_   POA_   POA_   POA_   POA_   POA_   POA_   POA_   POA_   POA_   POA_   POA_   POA_   POA_
+Obs CODE37 CODE38 CODE39 CODE40 CODE41 CODE42 CODE43 CODE44 CODE45 CODE46 CODE47 CODE48 CODE49 CODE50 DIAG_IND       BUCKET35
+
+ 1                                                                                                       0             295.00
+
+ 
+Obs       BUCKET10         BUCKET9        BUCKET13        BUCKET25        BUCKET23        BUCKET37        BUCKET14         BUCKET5
+
+ 1          245.00             .               .               .               .               .               .               .  
+
+ 
+Obs       BUCKET18        BUCKET27        BUCKET28        BUCKET12        BUCKET19        BUCKET22         BUCKET6         BUCKET7
+
+ 1             .               .               .               .               .               .               .               .  
+
+ 
+Obs       BUCKET24        BUCKET20        BUCKET36        BUCKET21        BUCKET11        BUCKET17         BUCKET8        BUCKET29
+
+ 1           50.00             .               .               .               .               .               .               .  
+
+ 
+Obs        BUCKET1       BUCKET15       BUCKET26        BUCKET2        BUCKET3        BUCKET4       BUCKET16 BUCKET30 BUCKET31
+
+ 1             .              .              .              .              .              .              .       .        .   
+                                                             dscreen18                              01:09 Friday, April 13, 2018   6
+
+ 
+Obs BUCKET32   BUCKET33   BUCKET34   PX_CODE101             PX_CODE104             PX_CODE107             PX_CODE110
+
+ 1      .          .          .                                                                                               
+
+ 
+Obs PX_CODE111           PX_CODE112           PX_CODE113           PX_CODE99            PX_CODE102           PX_CODE105
+
+ 1                                                                                                                               
+
+ 
+Obs PX_CODE108           PX_CODE100           PX_CODE103           PX_CODE106           PX_CODE109           PX_CODE114
+
+ 1                                                                                                                               
+
+ 
+Obs PX_CODE133           PX_CODE115           PX_CODE116           PX_CODE124           PX_CODE117           PX_CODE125
+
+ 1                                                                                                                               
+
+ 
+Obs PX_CODE119           PX_CODE127           PX_CODE120           PX_CODE128           PX_CODE129           PX_CODE130
+
+ 1                                                                                                                               
+
+ 
+Obs PX_CODE131           PX_CODE132           PX_CODE134           PX_CODE135           PX_CODE118           PX_CODE126
+
+ 1                                                                                                                               
+
+ 
+Obs PX_CODE137           PX_CODE138           PX_CODE139           PX_CODE140           PX_CODE141           PX_CODE142
+
+ 1                                                                                                                               
+
+ 
+Obs PX_CODE144           PX_CODE145           PX_CODE146           PX_CODE143           PX_CODE136           PX_CODE121
+
+ 1                                                                                                                               
+
+ 
+Obs PX_CODE122            PX_CODE123            PX_DATE101  PX_DATE104  PX_DATE107  PX_DATE110  PX_DATE111  PX_DATE112  PX_DATE113
+
+ 1                                                       .           .           .           .           .           .           .
+                                                             dscreen18                              01:09 Friday, April 13, 2018   7
+
+ 
+Obs  PX_DATE99 PX_DATE102 PX_DATE105 PX_DATE108 PX_DATE100 PX_DATE103 PX_DATE106 PX_DATE109 PX_DATE114 PX_DATE133 PX_DATE115
+
+ 1           .          .          .          .          .          .          .          .          .          .          .
+
+ 
+Obs PX_DATE116 PX_DATE124 PX_DATE117 PX_DATE125 PX_DATE119 PX_DATE127 PX_DATE120 PX_DATE128 PX_DATE129 PX_DATE130 PX_DATE131
+
+ 1           .          .          .          .          .          .          .          .          .          .          .
+
+ 
+Obs PX_DATE132 PX_DATE134 PX_DATE135 PX_DATE118 PX_DATE126 PX_DATE137 PX_DATE138 PX_DATE139 PX_DATE140 PX_DATE141 PX_DATE142
+
+ 1           .          .          .          .          .          .          .          .          .          .          .
+
+ 
+Obs PX_DATE144    PX_DATE145    PX_DATE146    PX_DATE143    PX_DATE136    PX_DATE121    PX_DATE122    PX_DATE123    gender
+
+ 1           .             .             .             .             .             .             .             .      M   
