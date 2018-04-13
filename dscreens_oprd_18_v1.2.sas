@@ -287,8 +287,18 @@ data flags_work;
 		if years ne . and (years<12 or years>55) and put(px_code&i,$cpt_childbearing.)='Y' then flag15=1;
 		if put(dx_code&i, $dx_sex.)='F' and gender='M' then flag17=1;
 		else if put(dx_code&i, $dx_sex.)='M' and gender='F' then flag17=1;
-		if gender ne 'F' and put(px_code&i,$cpt_female_only.)='Y' then flag18=1;
-		else if gender ne 'M' and put(px_code&i, $cpt_male_only.)='Y' then flag18=1;
+		if ((gender ne 'F') and (put(px_code&i,$cpt_female_only.)='Y')) then  
+		do;
+		%put "Writing into log: " px_code&i.;
+		%put "Writing into log: " put(px_code&i.,$cpt_female_only.);
+		flag18=1;
+		end;
+		else if ((gender ne 'M') and (put(px_code&i., $cpt_male_only.)='Y')) then 
+		do;
+		%put "Writing into log: " px_code&i.;
+		%put "Writing into log: " put(px_code&i.,$cpt_male_only.);
+		flag18=1;
+		end;
 		if px_code&i ne ' ' and put(px_code&i,$cptVal.) ne 'Y' then flag20=1; 
 		if &i>1 and dx_code&i ne ' ' and put(dx_code&i,$validDX_YN.) ne 'Y' then flag19=1;
 		if (put(px_code&i, $cptagel.)) ne 0 then if (years<put(px_code&i, $cptagel.)) then flag32=1; 
