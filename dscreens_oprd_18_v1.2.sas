@@ -203,6 +203,11 @@ fmtname='$cpt_male_only';
 type='C';
 run;
 
+put "Displaying from Male";
+proc sql;
+select * from fmt where start in ("73560","G0463");
+quit;
+
 proc format cntlin=fmt; run;
 
 proc import out=Female_Only datafile="/analytics/contentqa/databridge/201802_oprd_impact_analysis/documents/dscreen_cpt_hcpcs_code.xls"
@@ -218,6 +223,10 @@ label='Y';
 fmtname='$cpt_female_only';
 type='C';
 run;
+put "Displaying from Female";
+proc sql;
+select * from fmt where start in ("73560","G0463");
+quit;
 proc format cntlin=fmt; run;
 
 proc import out=childbearing datafile="/analytics/contentqa/databridge/201802_oprd_impact_analysis/documents/dscreen_cpt_hcpcs_code.xls"
