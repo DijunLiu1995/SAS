@@ -1,0 +1,76 @@
+/* ********************************************************************************* */
+/* ************** W R D S   R E S E A R C H   A P P L I C A T I O N S ************** */
+/* ********************************************************************************* */
+/* Summary   : Tobin's Q and Altman Z Score for Compustat Companies                  */
+/* Date      : August 24, 2011                                                       */
+/* Author    : Rabih Moussawi                                                        */
+/* Variables : - Computes proxies for Tobin's Q and Altman Z using Financial Ratios  */
+/*             - Proxy for Age of company using number of years with available data  */
+/*             - Adds delisting reason and delisting date information                */
+/* ********************************************************************************* */
+ 
+/* Set the Date Range */
+%let BEGDATE=01JAN1990;
+%let ENDDATE=31DEC2002;
+ 
+/* Step1. Extract Compustat Sample */
+data comp1;
+set comp.funda;
+where datadate between "&BEGDATE"d and "&ENDDATE"d
+ and DATAFMT='STD' and INDFMT='INDL' and CONSOL='C' and POPSRC='D';
+/* Use Daniel and Titman (JF 1997) Book of Equity Calculation: */
+if SEQ>0; /* Keep Companies with Existing Shareholders' Equity */
+/* PSTKRV: Preferred stock Redemption Value . If missing, use PSTKL: Liquidating Value */
+/* If still missing, then use PSTK: Preferred stock - Carrying Value, Stock (Capital)  */
+PREF = coalesce(PSTKRV,PSTKL,PSTK);
+/* BE = Stockholders Equity + Deferred Taxes + Envestment Tax Credit - Preferred Stock */
+BE = sum(SEQ, TXDB, ITCB, -PREF);
+/* Calculate Market Value of Equity at Year End */
+/* use prrc_c at the calendar year end for a fair cross sectional comparison */
+ME = PRCC_C*CSHO;
+/* Set missing retained earnings and missing current assets figures to zero */
+if missing(RE) then RE=0; if missing(ACT) then ACT=0;
+/* Calculate Market-to-Book Ratio */
+if BE>0 then MtB = ME / BE;
+/* Calculate Tobin's Q */
+Tobin_Q = (AT + ME - BE) / AT;
+/* Calculate Altman Z-Score */
+if LT>0 and AT>0 then
+  Altman_Z=3.3*(EBIT/AT) +0.99*(SALE/AT) +0.6*(ME/LT) +1.2*(ACT/AT) +1.4*(RE/AT);
+label datadate = "Fiscal Year End Date";
+label BE = "Book Value of Equity, x$mil";
+label ME = "Market Value of Equity, x$mil";
+label MtB= "Market-to-Book Ratio";
+label Tobin_Q ="Tobin's Q";
+label Altman_Z="Altman Z-Score";
+format AT NI SALE BE ME LT dollar12.3 Tobin_Q Altman_Z comma12.2;
+keep GVKEY datadate fyear fyr at ni sale lt be me Tobin_Q Altman_Z;
+run;
+ 
+/* Calculate Compustat Age */
+proc sql;
+create table AGE
+as select distinct gvkey, datadate, year(datadate)-year(min(datadate)) as AGE_Compustat
+from comp.funda
+where at>0
+group by gvkey;
+quit;
+ 
+proc sql;
+create table DROPOUT
+as select a.gvkey, a.conm, a.ipodate, a.dldte, a.dlrsn, b.dlrsndesc
+from comp.company as a left join comp.R_inactvcd as b
+on a.dlrsn = b.dlrsncd
+order by gvkey;
+quit;
+ 
+/* Put Tobin's Q, Altman Z, Age, and DropOut data together */
+data comp2; merge comp1(in=a) age; by gvkey datadate; if a; run;
+data comp3; merge dropout comp2(in=a); by gvkey; if a; run;
+ 
+/* END */
+ 
+/* ********************************************************************************* */
+/* *************  Material Copyright Wharton Research Data Services  *************** */
+/* ****************************** All Rights Reserved ****************************** */
+/* ********************************************************************************* */
