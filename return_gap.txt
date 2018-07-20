@@ -1,0 +1,324 @@
+/* ********************************************************************************* */
+/* ************** W R D S   R E S E A R C H   A P P L I C A T I O N S ************** */
+/* ********************************************************************************* */
+/* Summary   : Derive Mutual Fund Return Gap, using Holdings and Total Returns Data  */
+/* Date      : January, 2010                                                         */
+/* Authors   : Denys Glushkov and Rabih Moussawi                                     */
+/* Details   : - Replicates Kacperzczyk, Sialm and Zheng (RFS, 2008) findings        */
+/*             -  Thomson-Reuters Mutual Fund Holdings Data are used to compute      */
+/*                hypothetical returns                                               */
+/*             - CRSP Mutual Fund database is used to compute total returns, gross   */
+/*                returns, expense, and total assets at the portfolio level          */
+/*             - MFLinks provides the linking between Thomson and CRSP fund ids      */
+/*             - The universe of domestic equity funds is defined following KSZ      */
+/*                and Jochec (2009)                                                  */
+/* ********************************************************************************* */
+ 
+libname tfn "/wrds/tfn/sasdata/s12";
+libname mfl "/wrds/mfl/sasdata";
+libname ff  "/wrds/ff/sasdata";
+ 
+/* Step 1.1. Specifying Options */
+%let begdate = 01MAR1980;
+%let enddate = 31DEC2008;
+ 
+/* Step 1.2. Get CRSP Prices, Returns, and Adjustment Factors from MSF Dataset */
+/* and align CRSP month-end dates */
+data Price;
+set crsp.msf (keep=permno date cfacpr cfacshr shrout prc ret);
+by permno date;
+where date between "&begdate"d and "&enddate"d;
+DATE = INTNX('MONTH',date,0,'E');
+TSO=shrout*cfacshr*1000;
+P  = abs(prc)/cfacpr;
+P_1= lag(P); if first.permno then P_1=.;
+label TSO = "Total Shares Outstanding, Adjusted";
+label P = "Price at t Period End, Adjusted";
+label P_1 = "Price at (t-1), Adjusted";
+if TSO>0; format TSO comma12.0 ret percentn8.2 prc: dollar12.3;
+drop prc cfacpr shrout;
+run;
+ 
+/* Step 1.3. Get report and vintage dates from Thomson-Reuters Mutual Fund Holdings */
+/* Exclude Non-Equity Funds from Holdings data that is reported as of Fiscal Quarter End */
+/* First, Keep First Vintage with Holdings Data for Each RDATE-FUNDNO */
+proc sql;
+create table First_Vint
+as select distinct intnx("month",rdate,0,"E") as rdate format date9., fdate, fundno
+from tfn.s12type1
+where ("&begdate"d <= rdate <="&enddate"d and ioc not in (1,5,6,7))
+group by fundno, intnx("month",rdate,0,"E")
+having fdate=min(fdate) and max(rdate)=rdate
+order by fundno, rdate desc;
+quit;
+ 
+/* Until 2003, funds were only required to disclose their holdings semi-annually  */
+/* Approximately 60% of funds additionally report quarterly holdings              */
+/* Use 6-Months as cut-off for portfolio holding period                           */
+data First_Vint; set First_Vint;
+by fundno descending rdate; format nrdate date9.;
+nrdate = lag(rdate); if first.fundno then nrdate = intnx("month",rdate,6,"E");
+nrdate = min(nrdate,intnx("month",rdate,6,"E"));
+run;
+ 
+proc sort data=First_Vint nodupkey; by fundno fdate; run;
+ 
+/* Step 1.4. Add WFICN portfolio identifiers from MFLINKS */
+proc sql;
+create table First_Vint
+as select b.wficn, a.*
+from First_Vint as a, mfl.mflink2 as b
+where a.fundno=b.fundno and a.fdate between b.sdate1 and b.sdate2;
+quit;
+proc sort data=First_Vint nodupkey; by wficn rdate; run;
+ 
+/* Step 1.5. Extract Holdings by Merging TR-MF S12type1 and S12type3 Sets */
+proc sql;
+create view Holdings  /* Add Holdings Data */
+  as select a.rdate,a.nrdate,a.fdate,a.wficn,a.fundno,b.cusip,b.shares
+  from First_Vint as a, tfn.s12type3 as b
+  where a.fdate=b.fdate and a.fundno=b.fundno;
+create view Holdings1 /* Map Holdings CUSIP to CRSP Unique Identifier PERMNO */
+  as select a.rdate,a.nrdate,a.fdate,a.wficn,a.fundno,b.permno,a.shares
+  from Holdings as a, (select distinct ncusip, permno from crsp.msenames
+                       where not missing(ncusip)) as b
+  where a.cusip=b.ncusip;
+create table Holdings2 /* Adjust Shares on Vintage Dates */
+  as select a.rdate, a.nrdate, a.wficn, a.fundno, a.permno,
+      a.shares*b.cfacshr as shares_adj label = "Adjusted Shares Held"
+  from Holdings1 as a, price as b
+  where a.permno=b.permno and a.fdate=b.date;
+quit;
+ 
+/* Step 1.6. Add CRSP Market Data to Holdings: Populate Returns between 2 holding reports */
+/* Use holding dollar value at (t-1) as weights for buy & hold portfolio returns */
+proc sql;
+Create table MF_Holdings
+as select b.date, a.rdate, a.wficn, a.fundno, a.permno, a.shares_adj, b.ret,
+  (a.shares_adj*b.P_1) as HVALUE_1 label="MF Holding $ Value at (t-1)"
+from Holdings2 as a, price as b
+where a.permno=b.permno and a.rdate < b.date <= a.nrdate;
+quit;
+ 
+/* Sanity Checks for Duplicates - Ultimately, Should be 0 Duplicates */
+/* If No Errors, then Duplicates can be due to 2 historical CUSIPs */
+/*    (Separate Holdings by Same Manager) mapping to the same permno */
+proc sort data=MF_Holdings out=MF_Holdings nodupkey;
+by wficn date rdate permno; where HVALUE_1>0;
+run;
+ 
+/* Step 1.7. Calculate Assets and Holdings Returns, at the Portfolio Level */
+proc means data=MF_Holdings noprint;
+by wficn date;
+weight HVALUE_1;
+var ret;
+output out=MF_PortRets (drop=_TYPE_ _FREQ_) N=NSTOCKS MEAN=HRET SUMWGT=Assets_1;
+run;
+ 
+/* Exclude Funds that hold fewer than 10 stocks and manage less then $5 mil */
+data MF_PortRets; set MF_PortRets; format HRET percentn8.4;
+Assets_1=Assets_1/1000000; Assets = Assets_1*(1+HRET);
+if Assets>=5 and Nstocks>=10;
+label HRET = 'Value-Weighted Monthly Portfolio Holdings Return';
+label Assets = "Mutual Fund Portfolio Assets at Month t, $Million";
+label Assets_1= "Mutual Fund Portfolio Assets at Month (t-1), $Million";
+label Nstocks = "Number of Stocks Held as of Month t";
+run;
+ 
+/* Step 2.1. Extract CRSP Mutual Funds Performance and Characteristics */
+/* Merge fraction of portfolio in equity assets with the objective code data */
+proc sql;
+create table Fund_Style
+as select a.crsp_fundno, a.si_obj_cd, a.wbrger_obj_cd, a.policy, a.lipper_class, b.avrcs
+from crsp.fund_style a left join (select distinct crsp_fundno, sum(per_com)/count(per_com) as avrcs
+                                   from crsp.fund_summary group by crsp_fundno) b
+on a.crsp_fundno=b.crsp_fundno;
+quit;
+ 
+/* Step 2.2. Sample Selection, focus on Domestic Equity Mutual Funds */
+/* for which the holdings data are the most complete and reliable */
+data Equity_Funds; set Fund_Style;
+if not missing (Lipper_Class) and lipper_class not in ('EIEI','G','LCCE','LCGE','LCVE','MCCE',
+   'MCGE','MCVE','MLCE','MLGE','MLVE','SCCE','SCGE','SCVE') then delete;
+else if missing(Lipper_Class) then do;
+ if  not missing(si_obj_cd) and si_obj_cd not in ('AGG','GMC','GRI','GRO','ING','SCG') then delete;
+ else if missing(si_obj_cd) then do;
+  if not missing (wbrger_obj_cd) and wbrger_obj_cd not in ('G','G-I','AGG','GCI','GRI','GRO','LTG',
+     'MCG','SCG') then delete;
+  else if missing(wbrger_obj_cd) then do;
+    if not missing(policy) and policy ne 'CS' then delete;
+     else if not missing(policy) and avrcs<80 then delete;
+end; end; end;
+keep crsp_fundno;
+run;
+ 
+/* Step 2.3. Get CRSP Mutual Fund, Monthly Net Returns */
+/* Net Returns include distributions (dividends and capital gains) */
+/* and are net of total expenses (CRSP MFDB manual, page 6) */
+proc sql;
+ create table MF_TotRet
+ as select a.date format date9.,a.crsp_fundno,a.mret,b.mtna
+ from (select intnx("month",caldt,0,"e") as Date,crsp_fundno,mret
+        from Crsp.Monthly_Returns where not missing(mret)) a,
+      (select intnx("month",caldt,0,"e") as Date,crsp_fundno,mtna
+          from Crsp.Monthly_Tna) b
+      where a.date=b.date and a.crsp_fundno=b.crsp_fundno
+      and a.crsp_fundno in (select distinct crsp_fundno from equity_funds)
+      and a.date >= "&begdate"d;
+quit;
+ 
+/* Extracting and linking expense ratio data required to get Raw Return */
+proc sql;
+create table MF_TotRet
+     as select a.*, b.exp_ratio
+     from MF_TotRet as a left join Crsp.Fund_Fees as b
+     on a.crsp_fundno=b.crsp_fundno and a.date between b.begdt and b.enddt
+     order by crsp_fundno,date;
+quit;
+ 
+/* Step 2.4. Get Raw Total Portfolio Return by adding back expenses */
+data MF_TotRet; set MF_TotRet;
+by crsp_fundno date; retain TNA;
+if exp_ratio = -99 then exp_ratio=.;
+* Populate assets forward for gaps in asset reporting ;
+if first.crsp_fundno or MTNA>0 then TNA=MTNA;
+* Weight of Share Class in the Mutual Fund Portfolio;
+PORTW = lag(TNA); if first.crsp_fundno then PORTW=TNA;
+/* if missing weight, then assume $1million asset weight */
+if missing(PORTW) then PORTW=1;
+RRET=sum(mret,exp_ratio/12);
+label MRET = "Monthly Returns, Net" RRET = "Monthly Returns, Raw";
+label PORTW= "Mutual Fund Share Class Portfolio Weight, Lagged TNA";
+format mret rret exp_ratio percentn8.4; drop MTNA;
+run;
+ 
+/* Step 2.5. Merge with Portfolio Identifier from MFLINKS */
+proc sql;
+create table MF_TotRet
+as select b.wficn, a.*
+from MF_TotRet as a, mfl.mflink1 as b
+where a.crsp_fundno=b.crsp_fundno and not missing(b.wficn)
+order by wficn, date, crsp_fundno;
+quit;
+ 
+/* Step 2.6. Aggregate multiple share classes, use lagged TNA as weights */
+/* Compute monthly net and raw returns, TNA and expense ratio at the portfolio level */
+/* level for fund portfolios with multiple share classes */
+proc sql;
+create table MF_Port
+as select wficn, date,sum(exp_ratio*portw)/sum(portw) as exp_ratio format percentn8.4,
+    sum(tna) as mtna format dollar12.3, count(crsp_fundno) as nclass label='# of Share Classes',
+    sum(mret*portw)/sum(portw) as mret format percentn8.4,
+    sum(rret*portw)/sum(portw) as rret format percentn8.4
+from MF_TotRet
+group by wficn, date;
+quit;
+ 
+/* Step 3.1. Combining Hypothetical Holdings Returns with CRSP Total Returns */
+data RetGap;
+merge MF_PortRets(in=a) MF_Port(in=b);
+by wficn date; if a and b;
+RetGap = RRET - HRET;
+format RETGAP MRET RRET HRET percentn8.4;
+label RetGap="Return Gap";
+run;
+ 
+/* Calculate average return gap over previous 12 months */
+proc expand data=RetGap out=RetGap;
+by wficn; id date;
+convert retgap=retgap12m /transformout=(nomiss movave 12 trimleft 11);
+quit;
+ 
+/* Holdings are reported to the SEC and captured by Thomson with 3-month delay */
+data RetGap; set RetGap; by wficn date; format retgap12m_4 percentn8.4;
+retgap12m_4=lag4(retgap12m);
+if first.wficn then retgap12m_4=.;
+run;
+ 
+/* Form Return Gap Portfolios based on deciles of average 12-month Return Gap */
+/* Number of portfolios to form based on Return Gap Measure */
+%let portn=10;
+proc sort data=RetGap; by date;run;
+proc rank data=Retgap out=RetGapRank groups=&portn;
+by date; var retgap12m_4;
+ranks RetGap_Port;
+data RetGapRank;set RetGapRank; RetGap_Port=RetGap_Port+1;
+proc sort data=RetGapRank; by date RetGap_Port;run;
+ 
+/* Equal-weighted Return Gap Portfolios*/
+proc means data=RetGapRank noprint;
+where not missing(RetGap_Port);
+by date RetGap_Port;
+output out=RetGapPort mean(mret)=Port_Ret;
+run;
+proc transpose data=RetGapPort out=RetGapPort (drop=_NAME_) prefix=port_;
+by date; id RetGap_Port; var port_ret;
+run;
+ 
+/* Merge in Risk Factors, KSZ (2008) use CAPM, FF and Carhart risk models */
+proc sql;
+ create table RetGapPort
+      as select a.*, b.mktrf, b.smb, b.hml, b.umd, b.rf
+      from RetGapPort a left join ff.factors_monthly b
+      on a.date=intnx('month',b.dateff,0,'E');
+quit;
+ 
+/* Replicate Panel A of Figure 2 of (KSZ (2008), page 2396 */
+/* Compute abnormal returns according to different risk models */
+%macro Trading_Strategies;
+data Reg; set RetGapPort;
+where date between intnx('year',"&begdate"d,4,'b') and "&enddate"d;
+%do k=1 %to &portn;
+ exret_&k=port_&k-rf;
+ abret_&k=port_&k-rf-mktrf;
+%end;
+run; options nonotes;
+%do k=1 %to &portn;
+ proc reg data=Reg outest=m1 (keep=intercept) noprint; model port_&k=;
+ proc reg data=Reg outest=m2 (keep=intercept) noprint; model abret_&k=;
+ proc reg data=Reg outest=m3 (keep=intercept) noprint; model exret_&k=mktrf;
+ proc reg data=Reg outest=m4 (keep=intercept) noprint; model exret_&k=mktrf smb hml;
+ proc reg data=Reg outest=m5 (keep=intercept) noprint; model exret_&k=mktrf smb hml umd;
+run; quit;
+proc append base=MeanRaw   data=m1 force;
+proc append base=MeanAbret data=m2 force;
+proc append base=MeanCAPM  data=m3 force;
+proc append base=MeanFF    data=m4 force;
+proc append base=MeanFFM   data=m5 force;run;
+proc sql; drop table m1,m2,m3,m4,m5; quit;
+%end; options notes; %mend;
+%Trading_Strategies;
+ 
+/* Combine abnormal returns across different risk-adjustment models */
+data PlotRets; format RetGap_Port 3.; merge
+ Meanraw (rename=(intercept=meanraw))
+ Meanabret (rename=(intercept=meanabret))
+ MeanCAPM (rename=(intercept=meanCAPM))
+ MeanFF (rename=(intercept=meanFF))
+ MeanFFM (rename=(intercept=meanFFM));
+RetGap_Port +1;
+format meanraw meanabret meanCAPM meanFF meanFFM percentn8.2;
+label meanraw='Raw Return' meanabret='Excess Return' meanCAPM='CAPM Alpha'
+meanFF='Fama-French Alpha' meanFFM='Carhart Alpha' RetGap_Port='Return Gap Portfolio';
+run;
+proc datasets library=work nolist; delete mean: holdings: ret mf_:; run; quit;
+ 
+/* Plot Abnormal returns across Return Gap-based portfolios */
+options nodate orientation=landscape; ods pdf file='Return_Gap_Plot.pdf';
+goptions device=pdfc; /* Plot Saved in Home Director */
+%let vars=meanabret meanCAPM meanFF meanFFM;
+axis1 label=(angle=90 "Abnormal Return Of Trading Strategy");
+axis2 label=("Return Gap Portfolio");
+symbol interpol=join w=3 l=1;
+proc gplot data =PlotRets;
+ Title "Abnormal Return of Return Gap Trading Strategy";
+ Title2 "Sorting Based on the Return Gap ";
+ plot (&vars)*RetGap_Port / overlay legend vaxis=axis1 haxis=axis2;
+run;quit; ods pdf close;
+ 
+/* End */
+ 
+/* ********************************************************************************* */
+/* *************  Material Copyright Wharton Research Data Services  *************** */
+/* ****************************** All Rights Reserved ****************************** */
+/* ********************************************************************************* */
