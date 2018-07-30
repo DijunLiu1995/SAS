@@ -1,0 +1,1119 @@
+/************G3 Validity Data Pull******************************/
+/----------------------Young Sample-----------------------------/
+/---Loans booked in the whole quarter 6 months ago-------------/
+/*
+Created by Zhufeng
+May 15, 2015
+Things to change
+
+N2C defition(may not need to be monitored told by Rebecca)
+Business Tier cuts:Direct need to confirm with corresponding BAs
+The start_dt is modified for 2015Q2 and need to be changed back in 2015Q3
+Things different than G2
+
+Add dealer_diamond_cd for dealer business tier cuts. Tier 9 is only in Diamond
+dealers and the lower score is 1948 for Base and Premier and 1911 for Executive diamond dealers.
+Add PASS_THRU_CHNL_NM for PA business. Card customers:declined G3<1713; Non-card: no decline
+Note:there is no duplicates for each app_id after 2012 Mar in the table padw_credit.pl_appn_root
+But there might be duplicates for earlier appns due to sor_id
+ML
+1:42 AM
+md las
+to Everyone
+3)change prsweight to weight since it is not person level weight. It is just app level weight.
+It is 1 for every loan
+
+Things to note:
+In 2014Q4 quarter, we have included July and August data also.
+Final dataset has the data from July-2014 to November-2014 (5months)
+*/
+/****************************************************************/
+
+options compress=binary mprint nomlogic;
+options ERRORABEND;
+/*
+%let report_dt=today()-30;/
+/%let report_dt='01DEC2016'd;/
+/Old date code before always on start
+data null;
+
+call symput('start_dt', "'"||put(intnx('month',intnx('quarter',&report_dt,-2,'B'),-1,'B'),yymmddd10.)||"'" );
+call symput('end_dt', "'"||put(intnx('month',intnx('quarter',&report_dt,-2,'E'),-1,'E'),yymmddd10.)||"'" );
+call symput('start_qrt',put(intnx('quarter',&report_dt,-2,'B'),yyq6.));
+call symput('pull_qrt' ,put(intnx('quarter',&report_dt,0,'B'),yyq6.));
+run;
+Old date code before always on end/
+/Do this temporarily for 2015Q2, since we want to include July and Aug in 2014Q4/
+/%let start_dt='2014-07-01';/
+/Old date code before always on start
+%put Monitoring start date is &start_dt;
+%put Monitoring end date is &end_dt;
+%put Monitoring quarter is &pull_qrt;
+%put Monitoring Loans booked in the whole quater 6 month ago in &start_qrt;
+Old date code before always on end*/
+%let startdt = %sysget(startdt);
+%let enddt = %sysget(enddt);
+
+%let start=%sysfunc(inputn(&startdt, yymmdd10.));
+%let end=%sysfunc(inputn(&enddt, yymmdd10.));
+
+data null;
+call symput('start_dt', put(intnx('month',&start.,-6,'B'),yymmddd10.) );
+call symput('end_dt', put(intnx('month',&end.,-6,'E'),yymmddd10.) );
+call symput('start_qrt' ,put(intnx('quarter',intnx('month',&start,1,'B'),-2,'B'),yyq6.));
+call symput('pull_qrt' ,put(intnx('quarter',(intnx('month', &start., 1)),0,'B'),yyq6.));
+run;
+
+%let start_dt_d9=%sysfunc(inputn(&start_dt, yymmdd10.), date9.);
+%let end_dt_d9=%sysfunc(inputn(&end_dt, yymmdd10.), date9.);
+
+/modifying by Zhufeng end/
+%put start date is &start_dt; /2016-06-01/
+%put end date is &end_dt; /2016-08-31/
+%put &start_dt_d9;
+%put &end_dt_d9;
+%put &pull_qrt; /2017Q1/
+%put &start_qrt; /2016Q3/
+
+/****Assign libname for this quarter***/
+%let data=/prod/user/sam/coaf/npi/masi/model_monitoring/G3/data;
+%let cmf=/prod/user/sam/coaf/npi/masi/model_monitoring/G3/cmf;
+
+%sysexec mkdir -p "&data./G3_Validity/&pull_qrt";
+libname val "&data./G3_Validity";
+libname out "&data./G3_Validity/&pull_qrt";
+
+%let cmf_app_path = &cmf./g3_val_app_all/input;
+%let cmf_exog_path = &cmf./g3_val_prs_exog/input;
+
+libname cmf_app "&cmf_app_path";
+libname cmf_app2 "&cmf./g3_val_app_all_tier/input";
+libname cmf_exog "&cmf_exog_path";
+libname cmf_bur "&cmf./g3_val_bur_all/input";
+%let pull_qrt=%sysfunc(lowcase(&pull_qrt.));
+%let var_list=app_id app_date lob_id prod_id dealer_diamond_cd channel_nm g3_score del_60_plus chargeoff_flag DQ60 days_past_due lob tranche weight scorecard lob1 bumping_fico;
+%include "$HOME/Account.sas";
+
+
+/ADW/
+proc sql;
+connect to teradata(mode=teradata server=oneview database=padw user=&TeraID. password=&TeraPwd.);
+create table out.validity_young_&pull_qrt. as
+select
+*,
+int(
+mean(
+mean(PRIM_EFX_FICO_SCORE_VAL,PRIM_EXP_FICO_SCORE_VAL,PRIM_TRU_FICO_SCORE_VAL),
+mean(SCNDRY_EFX_FICO_SCORE_VAL,SCNDRY_EXP_FICO_SCORE_VAL, SCNDRY_TRU_FICO_SCORE_VAL)
+)
+) as app_avg_fico
+from connection to teradata
+
+(select 
+       root.APPN_ID as app_id,
+    fcab.MTHS_ON_BOOK_DUR as mob,
+    root.APPN_RECVD_DT as app_date, 
+       root.fund_dt, 
+    root.LOB_ID,
+       root.ASGND_PROD_ID as prod_id,
+       lsa.DLR_DMND_STAT_DESC as dealer_diamond_cd,
+       croot.PASS_THRU_CHNL_NM as channel_nm,
+       croot.BUMPING_FICO_SCORE_VAL as bumping_fico,
+    fcs.MODEL_SCORE_VAL as model_id,
+       fcs.PRIM_EFX_FICO_SCORE_VAL,
+    fcs.PRIM_EXP_FICO_SCORE_VAL,
+    fcs.PRIM_TRU_FICO_SCORE_VAL,
+    fcs.SCNDRY_EFX_FICO_SCORE_VAL,
+    fcs.SCNDRY_EXP_FICO_SCORE_VAL,
+    fcs.SCNDRY_TRU_FICO_SCORE_VAL,
+       fcs.APPN_MODEL_SCORE_VAL as g3_score,
+       fcs.PRICG_MODEL_SCORE_VAL as v3_score,
+       cast(fcab.DELQ_60_PLUS_DAYS_IND as int) as del_60_plus,
+    cast(fcab.CHRGOF_IND as int) as chargeoff_flag,
+    fcab.PDUE_DAY_CNT as days_past_due
+ from PADW.PL_APPN_ROOT as root
+ join PADW_CREDIT.PL_LOAN_STG_APPN as fcs
+         on root.APPN_ID=fcs.APPN_ID
+ left join padw.pl_loan_stg_appn as lsa
+       on root.appn_id = lsa.appn_id
+ left join padw_credit.PL_APPN_ROOT as croot
+       on root.appn_id = croot.appn_id
+ left join PADW.PL_CURR_DEFN_LOSS_FRCST_ME as fcab 
+      on fcs.APPN_ID= fcab.APPN_ID
+      and fcab.MTHS_ON_BOOK_DUR>=0 and fcab.MTHS_ON_BOOK_DUR<=6
+
+ where upper(root.fundd_ind)='Y'
+    and fcs.MODEL_SCORE_VAL=22
+    and root.APPN_RECVD_DT >=%str(%')&start_dt.%str(%') 
+       and root.APPN_RECVD_DT <=%str(%')&end_dt.%str(%')
+       and root.FUND_DT<=%str(%')&end_dt.%str(%')
+
+ );
+disconnect from teradata;
+quit;
+/Added by Sandeep/
+proc sql;
+connect to teradata(mode=teradata server=oneview database=padw user=&TeraID. password=&TeraPwd.);
+create table out.val6mon_direct_&pull_qrt. as
+select
+,
+int(
+mean(
+mean(PRIM_EFX_FICO_SCORE_VAL,PRIM_EXP_FICO_SCORE_VAL,PRIM_TRU_FICO_SCORE_VAL),
+mean(SCNDRY_EFX_FICO_SCORE_VAL,SCNDRY_EXP_FICO_SCORE_VAL, SCNDRY_TRU_FICO_SCORE_VAL)
+)
+) as app_avg_fico
+from connection to teradata
+(select b.app_id,b.app_date,b.prod_id ,a., b.g3_app_score as g3_score,b.lob_id
+from
+
+ (select 
+       
+       ap.asoc_appn_id,
+    fcab.MTHS_ON_BOOK_DUR as mob,
+ 
+       root.fund_dt, 
+ 
+       root.fundd_ind,
+       
+       lsa.DLR_DMND_STAT_DESC as dealer_diamond_cd,
+       croot.PASS_THRU_CHNL_NM as channel_nm,
+       croot.BUMPING_FICO_SCORE_VAL as bumping_fico,
+    fcs.MODEL_SCORE_VAL as model_id,
+       fcs.PRIM_EFX_FICO_SCORE_VAL,
+    fcs.PRIM_EXP_FICO_SCORE_VAL,
+    fcs.PRIM_TRU_FICO_SCORE_VAL,
+    fcs.SCNDRY_EFX_FICO_SCORE_VAL,
+    fcs.SCNDRY_EXP_FICO_SCORE_VAL,
+    fcs.SCNDRY_TRU_FICO_SCORE_VAL,
+       fcs.APPN_MODEL_SCORE_VAL as g3_score_36x,
+       fcs.PRICG_MODEL_SCORE_VAL as v3_score,
+       cast(fcab.DELQ_60_PLUS_DAYS_IND as int) as del_60_plus,
+    cast(fcab.CHRGOF_IND as int) as chargeoff_flag,
+    fcab.PDUE_DAY_CNT as days_past_due
+ from PADW.PL_APPN_ROOT as root
+
+ join padw.appn ap on root.appn_id=ap.appn_id
+ join padw_credit.PL_APPN_ROOT as croot on root.appn_id = croot.appn_id
+join PADW_CREDIT.PL_LOAN_STG_APPN as fcs on root.APPN_ID=fcs.APPN_ID
+ join padw.pl_loan_stg_appn as lsa on root.appn_id = lsa.appn_id
+ left join PADW.PL_CURR_DEFN_LOSS_FRCST_ME as fcab  on fcs.APPN_ID= fcab.APPN_ID
+                                                                  and fcab.MTHS_ON_BOOK_DUR>=0 and fcab.MTHS_ON_BOOK_DUR<=6
+WHERE root.fundd_ind = 'Y'
+AND root.APPN_RECVD_DT >= %str(%')&start_dt.%str(%')
+AND root.APPN_RECVD_DT <= %str(%')&end_dt.%str(%')
+AND root.FUND_DT<=%str(%')&end_dt.%str(%')
+AND asoc_appn_id IS NOT NULL
+QUALIFY ROW_NUMBER() OVER (PARTITION BY asoc_appn_id, mob ORDER BY root.fund_dt) =1) a
+inner join
+
+       (select root.appn_id as app_id,
+       root.APPN_RECVD_DT as app_date, 
+       root.fund_dt, 
+    root.LOB_ID,
+       root.ASGND_PROD_ID as prod_id,
+       ap.asoc_appn_id,
+       fc.SCORE_VAL AS g3_app_score
+       from PADW.PL_APPN_ROOT as root
+       JOIN padw.appn ap ON root.appn_id=ap.appn_id 
+       inner join PADW.DCSNG_APPN           ba     on root.appn_id=ba.appn_id
+       inner join  PADW_CREDIT.DCSNG_APPN  cr     on  ba.dcsng_appn_id =cr.dcsng_appn_id 
+       left join padw_credit.dcsng_appn_score fc  on ba.dcsng_appn_id = fc.dcsng_appn_id 
+       where fc.scormdl_id=22 and fc.score_nm = 'T3' 
+       and  root.APPN_RECVD_DT >= %str(%')&start_dt.%str(%')
+and  root.APPN_RECVD_DT <= %str(%')&end_dt.%str(%')
+and cr.scormdl_id =22 
+       and root.LOB_ID in (252,254)
+       and ap.asoc_appn_id is not null
+       QUALIFY ROW_NUMBER() OVER (PARTITION BY root.appn_id ORDER BY fc.DCSNG_SCORE_ID DESC)=1) b on a.asoc_appn_id = b.app_id
+            
+ );
+disconnect from teradata;
+quit;
+
+/Added Jalaja 07.21.2016 Capstone to Ideal change/
+
+proc sql;
+connect to teradata(mode=teradata server=oneview database=padw user=&TeraID. password=&TeraPwd.);
+create table out.id_val6mon_direct_&pull_qrt. as
+select
+*,
+int(
+mean(
+
+ML
+1:47 AM
+md las
+to Everyone
+              mean(PRIM_EFX_FICO_SCORE_VAL,PRIM_EXP_FICO_SCORE_VAL,PRIM_TRU_FICO_SCORE_VAL),
+            mean(SCNDRY_EFX_FICO_SCORE_VAL,SCNDRY_EXP_FICO_SCORE_VAL, SCNDRY_TRU_FICO_SCORE_VAL)
+                 )
+            ) as app_avg_fico
+from connection to teradata
+(select b.app_id,b.app_date,b.prod_id ,a.*, b.g3_app_score as g3_score,b.lob_id
+from
+(select
+
+       ap.asoc_appn_id,
+    fcab.MTHS_ON_BOOK_DUR as mob,
+ 
+       root.fund_dt, 
+ 
+       root.fundd_ind,
+       
+       lsa.DLR_DMND_STAT_DESC as dealer_diamond_cd,
+       croot.PASS_THRU_CHNL_NM as channel_nm,
+       croot.BUMPING_FICO_SCORE_VAL as bumping_fico,
+ML
+1:47 AM
+md las
+to Everyone
+    fcs.MODEL_SCORE_VAL as model_id,
+       fcs.PRIM_EFX_FICO_SCORE_VAL,
+    fcs.PRIM_EXP_FICO_SCORE_VAL,
+    fcs.PRIM_TRU_FICO_SCORE_VAL,
+    fcs.SCNDRY_EFX_FICO_SCORE_VAL,
+    fcs.SCNDRY_EXP_FICO_SCORE_VAL,
+    fcs.SCNDRY_TRU_FICO_SCORE_VAL,
+       fcs.APPN_MODEL_SCORE_VAL as g3_score_36x,
+       fcs.PRICG_MODEL_SCORE_VAL as v3_score,
+       cast(fcab.DELQ_60_PLUS_DAYS_IND as int) as del_60_plus,
+    cast(fcab.CHRGOF_IND as int) as chargeoff_flag,
+    fcab.PDUE_DAY_CNT as days_past_due
+ from PADW.PL_APPN_ROOT as root
+ join padw.appn ap on root.appn_id=ap.appn_id
+ join padw_credit.PL_APPN_ROOT as croot on root.appn_id = croot.appn_id
+ join PADW_CREDIT.PL_LOAN_STG_APPN as fcs on root.APPN_ID=fcs.APPN_ID
+ join padw.pl_loan_stg_appn as lsa on root.appn_id = lsa.appn_id
+ML
+1:48 AM
+md las
+to Everyone
+ left join PADW.PL_CURR_DEFN_LOSS_FRCST_ME as fcab  on fcs.APPN_ID= fcab.APPN_ID
+                                                                  and fcab.MTHS_ON_BOOK_DUR>=0 and fcab.MTHS_ON_BOOK_DUR<=6
+WHERE root.fundd_ind = 'Y'
+AND root.APPN_RECVD_DT >= %str(%')&start_dt.%str(%')
+AND root.APPN_RECVD_DT <= %str(%')&end_dt.%str(%')
+AND root.FUND_DT<=%str(%')&end_dt.%str(%')
+AND asoc_appn_id IS NOT NULL
+QUALIFY ROW_NUMBER() OVER (PARTITION BY asoc_appn_id, mob ORDER BY root.fund_dt) =1) a
+inner join
+
+       (select root.appn_id as app_id,
+       root.APPN_RECVD_DT as app_date, 
+       root.fund_dt, 
+    root.LOB_ID,
+ML
+1:48 AM
+md las
+to Everyone
+       root.ASGND_PROD_ID as prod_id,
+       ap.asoc_appn_id,
+/* fc.SCORE_VAL AS g3_app_score/
+CAST(1500 - 200/LN(2)fc.SCORE_LOGIT_VAL + 0.5 AS INTEGER) AS g3_app_score
+from PADW.PL_APPN_ROOT as root
+join padw.appn ap on root.appn_id=ap.appn_id
+inner join PADW.DCSNG_APPN_IDEAL ba on root.appn_id=ba.appn_id
+left join padw_credit.dcsng_appn_score fc on root.appn_id = fc.dcsng_appn_id
+LEFT JOIN padw_credit.pl_undwrtg_stg_appn pl ON root.appn_id=pl.appn_id
+where fc.scormdl_id=22 and fc.score_nm = 'T3'
+and root.APPN_RECVD_DT >= %str(%')&start_dt.%str(%')
+and root.APPN_RECVD_DT <= %str(%')&end_dt.%str(%')
+and PL.MODEL_SCORE_VAL =22
+and root.LOB_ID in (252,254)
+and ap.asoc_appn_id IS NOT NULL
+QUALIFY ROW_NUMBER() OVER (PARTITION BY root.appn_id ORDER BY fc.DCSNG_SCORE_ID DESC)=1) b on a.asoc_appn_id = b.app_id
+
+ );
+ML
+1:48 AM
+md las
+to Everyone
+disconnect from teradata;
+quit;
+
+proc append base=out.val6mon_direct_&pull_qrt. data=out.id_val6mon_direct_&pull_qrt. force;run;
+/*End Jalaja */
+
+data out.validity_young_&pull_qrt.;
+set out.validity_young_&pull_qrt.;
+if lob_id in (361,363) then delete;
+run;
+
+data val_direct (keep=app_id
+mob
+app_date
+FUND_DT
+LOB_ID
+prod_id
+dealer_diamond_cd
+channel_nm
+bumping_fico
+
+ML
+1:49 AM
+md las
+to Everyone
+model_id
+PRIM_EFX_FICO_SCORE_VAL
+PRIM_EXP_FICO_SCORE_VAL
+PRIM_TRU_FICO_SCORE_VAL
+SCNDRY_EFX_FICO_SCORE_VAL
+SCNDRY_EXP_FICO_SCORE_VAL
+SCNDRY_TRU_FICO_SCORE_VAL
+g3_score
+v3_score
+del_60_plus
+chargeoff_flag
+days_past_due
+app_avg_fico
+);
+set out.val6mon_direct_&pull_qrt.;
+run;
+proc append base=out.validity_young_&pull_qrt. data=val_direct; run;
+
+/End Sandeep/
+
+ML
+1:49 AM
+md las
+to Everyone
+/Added by JALAJA/
+proc print data=out.validity_young_&pull_qrt. (obs= 10);run;
+
+data out.validity_young_&pull_qrt.;
+set out.validity_young_&pull_qrt.;
+if days_past_due>=60 or chargeoff_flag=1 then DQ60=1;
+else DQ60=0;
+run;
+
+proc freq data=out.validity_young_&pull_qrt.;
+Title "After creating teh DQ60";
+tables del_60_pluschargeoff_flagDQ60/list missing;
+run;
+
+/END JALAJA/
+
+ML
+1:49 AM
+md las
+to Everyone
+/remove duplicates due to multiple mob,keep the one with max del_60_plus/
+proc sql;
+create table
+out.loans_max_mob
+as
+select
+app_id,
+app_date,
+fund_dt,
+max(mob) as mob_max
+from
+out.validity_young_&pull_qrt.
+group by
+app_id;
+quit;
+
+data out.loans_max_mob;
+set out.loans_max_mob;
+if mob_max<6 then mob_six_ind=-1;
+if mob_max=6 then mob_six_ind=0;
+if mob_max>6 then mob_six_ind=1;
+run;
+
+ML
+1:49 AM
+md las
+to Everyone
+proc freq data=out.loans_max_mob;table mob_six_ind;run;
+
+proc freq data=out.loans_max_mob(where=(mob_six_ind=-1));table fund_dt;run;
+
+proc sort data=out.validity_young_&pull_qrt.; by app_id descending DQ60 mob;run;
+proc sort data=out.validity_young_&pull_qrt. nodupkey; by app_id;run;
+
+proc freq data=out.validity_young_&pull_qrt.;tables lob_id;run;
+/*
+proc freq data=out.validity_young_&pull_qrt.; table app_date;run;
+proc freq data=out.validity_young_&pull_qrt.; table fund_dt;run;
+proc freq data=out.validity_young_&pull_qrt.; table dealer_diamond_cd;run;
+proc freq data=out.validity_young_&pull_qrt.; table channel_nm;run;
+*/
+data out.validity_young_&pull_qrt.;
+length lob $8. tranche $8.;
+
+ML
+1:50 AM
+md las
+to Everyone
+set out.validity_young_&pull_qrt.;
+if lob_id in (201,202,204) and prod_id not in (7155,7156,7157,7165,7166,7175,7185,7186,7195,6140,6141,6142,6143,6144) then do;
+lob='sp';
+end;
+else if lob_id in (350) or prod_id in (7155,7156,7157,7165,7166,7175,7185,7186,7195,6140,6141,6142,6143,6144) then do;
+lob='np';
+end;
+else if lob_id in (301,302,304) then do;
+lob='pr';
+end;
+else if lob_id in (203,303) then do;
+lob='CarMax';
+end;
+else if lob_id in (200) then do;
+lob='pa';
+end;
+
+ML
+1:50 AM
+md las
+to Everyone
+proc freq data=out.validity_young_&pull_qrt.;table lob*dealer_diamond_cd tranche mtranche/missing;run;
+
+/driver for business tier cut/
+data validity_young_&pull_qrt. (keep=&var_list.);
+length app_id 8.;
+set out.validity_young_&pull_qrt.;
+weight=1;
+scorecard="G3";
+/question, is this N2C defition correct? just follow G2/
+if prod_id>=6140 and prod_id<6148 and lob in ('sp','np','pr') then lob1='N2C';
+else lob1='';
+run;
+
+/* Segmentation for Business Tier Cuts*/
+proc sql;
+connect to teradata(mode=teradata server=oneview user=&TeraID. password=&TeraPwd.);
+create table segs_all as select * from connection to teradata
+
+ML
+1:50 AM
+md las
+to Everyone
+( select APPN_ID as app_id
+, BUS_SEG_NM as seg_1
+, ASOCD_LOB_NM as seg_2
+, ASOCD_LOB_SUB_SEG_NM as seg_3
+from padw.pl_appn_root
+where APPN_RECVD_DT >=%str(%')&start_dt.%str(%') and APPN_RECVD_DT <=%str(%')&end_dt.%str(%')
+and FUND_DT<=%str(%')&end_dt.%str(%')
+group by 1,2,3,4
+order by 1,2,3,4
+);
+disconnect from teradata;
+quit;
+
+proc sort data=validity_young_&pull_qrt.; by app_id tranche; run;
+
+data validity_young_&pull_qrt.;
+
+ML
+1:50 AM
+md las
+to Everyone
+data validity_young_&pull_qrt.;
+length lob_desc $15.;
+set validity_young_&pull_qrt.;
+if lob_id IN (252,253,254,255,361,362,363) or upcase(seg_1)='DIRECT' then lob_desc='Direct';/Added lob_id IN (252,253,254,255,361,362,363) or by Sandeep as per the new request/
+else if upcase(seg_1)='DEALER_S' then do;
+if upcase(seg_3)='PA' then lob_desc='PA';
+else if upcase(seg_3)='CARMAX' then lob_desc='Carmax';
+else lob_desc='Dealer_S';
+end;
+else if upcase(seg_1)='DEALER_P' and upcase(seg_2)='IP_NP' then lob_desc='Dealer_NP';
+else lob_desc='Dealer_P';
+run;
+
+/*
+data val.val_young_app_all;
+set validity_young_&pull_qrt.;
+run;
+*/
+
+ML
+1:51 AM
+md las
+to Everyone
+proc sql;
+delete from val.val_young_app_all
+/where tranche="&start_qrt.";/
+where app_date >= "&start_dt_d9"d AND app_date <= "&end_dt_d9"d;
+quit;
+
+proc contents data=val.val_young_app_all; run;
+
+proc append base=val.val_young_app_all data=validity_young_&pull_qrt.;run;
+
+ODS LISTING CLOSE;
+ODS HTML FILE = "&data./val_logs/g3_val_loan_stat.HTML";
+proc freq data=out.validity_young_&pull_qrt.;table lobDQ60;run;
+proc freq data=out.validity_young_&pull_qrt.;table tranchemtranche;run;
+proc means data=val.val_young_app_all N NMiss Mean Max Min; class tranche lob; run;
+proc means data=val.val_young_app_all N NMiss Mean Max Min; class tranche lob1; run;
+proc means data=val.val_young_app_all N NMiss Mean Max Min; class tranche;var bumping_fico; run;
+proc sort data=validity_young_&pull_qrt. out=val_nodup nodupkey;by app_id;run;
+proc freq data=val_nodup;table lob*lob_desc;run;
+
+ML
+1:51 AM
+md las
+to Everyone
+proc freq data=validity_young_&pull_qrt.;table lobchannel_nm/missing;run;
+proc freq data=validity_young_&pull_qrt.;table lob_descchannel_nm/missing;run;
+proc freq data=validity_young_&pull_qrt.; table lob_desc*dealer_diamond_cd;run;
+ODS HTML CLOSE;
+ODS LISTING;
+
+/***************************************************************************************************************/
+/************************** Scoreband cuts using business Tier Cuts ********************/
+/***************************************************************************************************************/
+proc freq data=val.val_young_app_all;
+table tranchelob tranchelob_desc/missing ;
+run;
+
+data cmf_app2.val_young_app_all;
+set val.val_young_app_all;
+
+length pa_tier $2.;
+if lob='pr' then do;
+
+ML
+1:52 AM
+md las
+to Everyone
+if g3_score >= 3013 then pr_tier=0;
+else if g3_score >= 2776 then pr_tier=1;
+else if g3_score >= 2565 then pr_tier=2;
+else if g3_score >= 2470 then pr_tier=3;
+else if g3_score >= 2389 then pr_tier=4;
+else if g3_score >= 2347 then pr_tier=5;
+end;
+
+else if lob='np' then do;
+if g3_score >= 2776 then np_tier=1;
+else if g3_score >= 2565 then np_tier=2;
+else if g3_score >= 2470 then np_tier=3;
+else if g3_score >= 2389 then np_tier=4;
+else if g3_score >= 2347 then np_tier=5;
+else if g3_score >= 2207 then np_tier=6;
+else if g3_score >= 2117 then np_tier=7;
+else if g3_score >= 2042 then np_tier=8;
+
+ML
+1:52 AM
+md las
+to Everyone
+ else if app_date <= "09FEB2016"d and g3_score >= 1911 then np_tier = 9;
+else if app_date >= "10FEB2016"d and app_date <="15AUG2017"d and g3_score >=1822 then np_tier=9;
+else if app_Date >= "16AUG2017"d and g3_score >=1831 then np_tier =9;
+/*
+(g3_score >= 1948 and dealer_diamond_cd in ("DIAMOND", "PREMIER DIAMOND"))
+or (g3_score >= 1911 and dealer_diamond_cd eq "EXECUTIVE DIAMOND" )
+then np_tier=9;
+*/
+end;
+
+else if lob='sp' then do;
+if g3_score >= 2347 then sp_tier=5;
+else if g3_score >= 2207 then sp_tier=6;
+else if g3_score >= 2117 then sp_tier=7;
+else if g3_score >= 2042 then sp_tier=8;
+
+ML
+1:52 AM
+md las
+to Everyone
+ else if app_date <= "09FEB2016"d and g3_score >= 1911 then sp_tier = 9;
+else if app_date >= "10FEB2016"d and app_date <="15AUG2017"d and g3_score >=1822 then sp_tier=9;
+else if app_Date >= "16AUG2017"d and g3_score >=1831 then sp_tier =9;
+/*
+Discuss with Sameer, just use 1911 as floor of tier 9
+(g3_score >= 1948 and dealer_diamond_cd in ("DIAMOND", "PREMIER DIAMOND"))
+or (g3_score >= 1911 and dealer_diamond_cd eq "EXECUTIVE DIAMOND" )
+
+       then sp_tier=9;
+*/
+end;
+
+/min cuts for direct is 2134, so we just keep until tier 7/
+else if lob='direct' then do;
+if g3_score >= 2803 and bumping_fico >= 620 then direct_tier=1;
+else if g3_score >= 2625 and bumping_fico >= 620 then direct_tier=2;
+
+ML
+1:52 AM
+md las
+to Everyone
+ else if g3_score >= 2517 and bumping_fico >= 620 then direct_tier=3;
+ else if g3_score >= 2431 and bumping_fico >= 620 then direct_tier=4;
+ else if g3_score >= 2388 then direct_tier=5;
+ else if g3_score >= 2240 then direct_tier=6;
+ else if g3_score >= 2078 then direct_tier=7;
+end;
+
+else if lob='pa' then do;
+if g3_score >= 2776 then pa_tier=1;
+else if g3_score >= 2565 then pa_tier=2;
+else if g3_score >= 2470 then pa_tier=3;
+else if g3_score >= 2389 then pa_tier=4;
+
+ML
+1:52 AM
+md las
+to Everyone
+ else if g3_score >= 2347 then pa_tier=5;
+ else if g3_score >= 2207 then pa_tier=6;
+ else if g3_score >= 2117 then pa_tier=7;
+ else if g3_score >= 2042 then pa_tier=8;
+ else pa_tier=9;
+end;
+
+else if lob='CarMax' then do;
+if g3_score>=2347 then cm_tier=5;
+else if g3_score>=2207 then cm_tier=6;
+else if g3_score>=2117 then cm_tier=7;
+else if g3_score>=2042 then cm_tier=8;
+else if g3_score>=1884 then cm_tier=9;
+end;
+
+ML
+1:53 AM
+md las
+to Everyone
+if lob='np' then do;
+if g3_score >= 2776 then np_tier7_plus=1;
+else if g3_score >= 2565 then np_tier7_plus=2;
+else if g3_score >= 2470 then np_tier7_plus=3;
+else if g3_score >= 2389 then np_tier7_plus=4;
+else if g3_score >= 2347 then np_tier7_plus=5;
+else if g3_score >= 2207 then np_tier7_plus=6;
+else if app_date <= "09FEB2016"d and g3_score >= 1911 then np_tier7_plus = 7;
+else if app_date >= "10FEB2016"d and app_date <="15AUG2017"d and g3_score >=1822 then np_tier7_plus =7;
+else if app_Date >= "16AUG2017"d and g3_score >=1831 then np_tier7_plus =7;
+
+end;
+
+run;
+
+ML
+1:53 AM
+md las
+to Everyone
+proc freq data=cmf_app2.val_young_app_all(where=(lob="pr"));table tranchepr_tier/missing;run;
+proc freq data=cmf_app2.val_young_app_all(where=(lob="sp"));table tranchesp_tier/missing;run;
+proc freq data=cmf_app2.val_young_app_all(where=(lob="np"));table tranchenp_tier tranchenp_tier7_plus/missing;run;
+proc freq data=cmf_app2.val_young_app_all(where=(lob="pa"));table tranchepa_tier/missing;run;
+proc freq data=cmf_app2.val_young_app_all(where=(lob="Carmax"));table tranchecm_tier/missing;run;
+proc freq data=cmf_app2.val_young_app_all(where=(lob="direct"));table tranchedirect_tier/missing;run;
+proc freq data=cmf_app2.val_young_app_all;table lobpr_tier/missing;run;
+
+proc means data=cmf_app2.val_young_app_all(where=(lob="sp" and missing(sp_tier))) N NMISS min max ;var g3_score;run;
+/698 loans with missing sp_tier, min:1727, so subprime has loans with g3 as 1727/
+
+ML
+1:53 AM
+md las
+to Everyone
+/***************************************************************************************************************/
+/****************** Scoreband cuts using Decile cuts from most recent production quarter ********************/
+/***************************************************************************************************************/
+options nomprint nomlogic symbolgen=no;
+%include "/prod/user/sam/coaf/npi/masi/cmf/cmf_prod_scripts/release/scripts/chkmacroerrors.sas";
+%include "/prod/user/sam/coaf/npi/masi/cmf/cmf_prod_scripts/release/scripts/chkvars.sas";
+%include "/prod/user/sam/coaf/npi/masi/cmf/cmf_prod_scripts/release/scripts/numofwords.sas";
+%include "/prod/user/sam/coaf/npi/masi/cmf/cmf_prod_scripts/release/scripts/sortlist.sas";
+%include "/prod/user/sam/coaf/npi/masi/cmf/cmf_prod_scripts/release/scripts/autobinx.sas";
+
+/************** App level score validity by LOB* ***************/
+/options mprint mlogic symbolgen;/
+%macro prod_decile_cuts(lob,wc);
+
+ML
+1:54 AM
+md las
+to Everyone
+data val_young_app_&lob.;
+set val.val_young_app_all
+%if &wc. ne %then %do;
+(where=(&wc.))
+%end;
+;
+run;
+
+%autobinx ( Indata=%str(val_young_app&lob.)
+,_InPath=%str()
+,_variables=%str(g3_score)
+,_nGroups=%str(10)
+,_bandtxt=%str(decile)
+,_autowc=%str(tranche="&start_qrt.")
+,OutData=%str(val_young_app&lob._decile)
+,_OutPath=%str(&cmf_app_path.)
+
+ML
+1:54 AM
+md las
+to Everyone
+data cmf_app.val_young_app_&lob.decile(rename=(g3_score_decile=decile));
+set cmf_app.val_young_app&lob._decile;
+run;
+
+%mend;
+
+%prod_decile_cuts(all)
+%prod_decile_cuts(sp,lob eq 'sp')
+%prod_decile_cuts(pr,lob eq 'pr')
+%prod_decile_cuts(np,lob eq 'np')
+%prod_decile_cuts(CarMax,lob eq 'CarMax')
+%prod_decile_cuts(pa,lob eq 'pa')
+%prod_decile_cuts(direct,lob eq 'direct')
+
+%macro prod_decile_cuts(lob,wc);
+data val_young_app_&lob.;
+set val.val_young_app_all
+%if &wc. ne %then %do;
+(where=(&wc.))
+%end;
+;
+run;
+
+ML
+1:54 AM
+md las
+to Everyone
+%autobinx ( Indata=%str(val_young_app&lob.)
+,_InPath=%str()
+,_variables=%str(g3_score)
+,_nGroups=%str(5)
+,_bandtxt=%str(pentile)
+,_autowc=%str(tranche="&start_qrt.")
+,OutData=%str(val_young_app&lob._pentile)
+,_OutPath=%str(&cmf_app_path.)
+,SumDS=%str(app&lob._autobin_pentile_sum)
+,_SumDSPath=%str(&cmf_app_path.)
+,_partBinFlag=%str(1)
+,_weightflag=%str(1)
+,_weightvar=%str(weight)
+,_desc=%str(0)
+);
+
+data cmf_app.val_young_app_&lob.pentile(rename=(g3_score_pentile=pentile));
+set cmf_app.val_young_app&lob._pentile;
+run;
+
+%mend;
+
+ML
+1:54 AM
+md las
+to Everyone
+%prod_decile_cuts(CarMax,lob eq 'CarMax')
+
+proc contents data=cmf_app.val_young_app_carmax_pentile; run;
+
+proc sort data=cmf_app.val_young_app_carmax_decile out=cm_decile; by app_id; run;
+proc sort data=cmf_app.val_young_app_carmax_pentile out=cm_pentile; by app_id; run;
+
+data cmf_app.val_young_app_carmax;
+merge cm_decile(in=a) cm_pentile(in=b);
+by app_id;
+if a and b ;
+run;
+
+proc freq data=cmf_app.val_young_app_carmax;
+tables tranchedecilepentile/list missing;
+run;
+
+/Removing lob_id in 253 from cmf input dataset/
+/bench total "253" records 85591 deleted/
+
+data cmf_app2.val_young_app_all;
+set cmf_app2.val_young_app_all;
+if lob_id = 253 then delete;
+run;
+
+proc sql;
+delete from cmf_app2.val_young_app_all
+where app_date<'07Jan2015'd and lob='direct';
+quit;
+
+ML
+1:55 AM
+md las
+to Everyone
+data cmf_app2.val_young_app_all;
+set cmf_app2.val_young_app_all;
+if app_date>'06Jan2015'd and app_date<'01Mar2015'd and lob='direct' then tranche='bench';
+run;
+
+proc freq data=cmf_app2.val_young_app_all;tables lob_idtranche/list missing;run;
+proc freq data=cmf_app2.val_young_app_all;tables lobtranche/list missing;run;
+
+/deleting 253 records from g3_g2_val_app_all cmf input dataset/
+data cmf_app.val_young_app_direct_decile;
+set cmf_app.val_young_app_direct_decile;
+if lob_id = 253 then delete;
+run;
+
+proc sql;
+delete from cmf_app.val_young_app_direct_decile
+where app_date<'07Jan2015'd and lob='direct';
+quit;
+
+data cmf_app.val_young_app_direct_decile;
+set cmf_app.val_young_app_direct_decile;
+if app_date>'06Jan2015'd and app_date<'01Mar2015'd and lob='direct' then tranche='bench';
+run;
+
+ML
+1:55 AM
+md las
+to Everyone
+proc freq data=cmf_app.val_young_app_direct_decile;tables lob_id*tranche/list missing;run;
+
+proc freq data=cmf_app.val_young_app_direct_decile;tables lob*tranche/list missing;run;
+
+data cmf_app.val_young_app_all_decile;
+set cmf_app.val_young_app_all_decile;
+if lob_id = 253 then delete;
+run;
+
+proc sql;
+delete from cmf_app.val_young_app_all_decile
+where lob='direct';
+quit;
+
+data cmf_app.val_young_app_all_decile;
+set cmf_app.val_young_app_all_decile;
+if app_date>'06Jan2015'd and app_date<'01Mar2015'd and lob='direct' then tranche='bench';
+run;
+
+proc freq data=cmf_app.val_young_app_all_decile;tables lob_id*tranche/list missing;run;
+
+proc freq data=cmf_app.val_young_app_all_decile;tables lob*tranche/list missing;run;
+
+/** g2_val_app_all_tier */
+
+ML
+1:55 AM
+md las
+to Everyone
+/_SampleDesc: %str(Subprime LOB - Tier Cuts)|%str(NearPrime LOB - Tier Cuts)
+|%str(Prime LOB - Tier Cuts)|%str(Prime LOB - Tier1 to Tier3)
+|%str(Direct LOB - Tier Cuts)|%str(PA LOB - Tier Cuts)|%str(Carmax LOB - Tier Cuts)/
+
+data cmf_app2.vr1_val_young_app_all;
+input scorecard $ band upbound ub_inclusive $ lowbound lb_inclusive $;
+/length scorecard $ 30 ub_inclusive lb_inclusive $1;/
+datalines;
+G3 5 . . 2347 Y
+G3 6 2347 N 2207 Y
+G3 7 2207 N 2117 Y
+G3 8 2117 N 2042 Y
+G3 9 2042 N 1831 Y
+quit;
+
+/* scenario 2: NearPrime LOB - Tier Cuts*/
+data cmf_app2.vr2_val_young_app_all;
+input scorecard $ band upbound ub_inclusive $ lowbound lb_inclusive $;
+datalines;
+
+ML
+1:55 AM
+md las
+to Everyone
+G3 1 . . 2776 Y
+G3 2 2776 N 2565 Y
+G3 3 2565 N 2470 Y
+G3 4 2470 N 2389 Y
+G3 5 2389 N 2347 Y
+G3 6 2347 N 2207 Y
+G3 7 2207 N 2117 Y
+G3 8 2117 N 2042 Y
+G3 9 2042 N 1831 Y
+quit;
+
+data cmf_app2.vr3_val_young_app_all;
+input scorecard $ band upbound ub_inclusive $ lowbound lb_inclusive $;
+datalines;
+G3 1 . . 2776 Y
+G3 2 2776 N 2565 Y
+G3 3 2565 N 2470 Y
+G3 4 2470 N 2389 Y
+G3 5 2389 N 2347 Y
+G3 6 2347 N 2207 Y
+G3 7 2207 N 1831 Y
+quit;
+
+ML
+1:55 AM
+md las
+to Everyone
+/* scenario 3: Prime LOB - Tier Cuts*/
+
+data cmf_app2.vr4_val_young_app_all;
+input scorecard $ band upbound ub_inclusive $ lowbound lb_inclusive $;
+datalines;
+G3 0 . . 3013 Y
+G3 1 3013 N 2776 Y
+G3 2 2776 N 2565 Y
+G3 3 2565 N 2470 Y
+G3 4 2470 N 2389 Y
+G3 5 2389 N 2347 Y
+quit;
+
+/* scenario 4: Prime LOB - Tier0-Tier3*/
+data cmf_app2.vr5_val_young_app_all;
+input scorecard $ band upbound ub_inclusive $ lowbound lb_inclusive $;
+datalines;
+G3 0 . . 3013 Y
+G3 1 3013 N 2776 Y
+G3 2 2776 N 2565 Y
+quit;
+
+ML
+1:56 AM
+md las
+to Everyone
+/* scenario 5: Direct LOB - Tier Cuts */
+
+data cmf_app2.vr6_val_young_app_all;
+input scorecard $ band upbound ub_inclusive $ lowbound lb_inclusive $;
+datalines;
+G3 1 . . 2803 Y
+G3 2 2803 N 2625 Y
+G3 3 2625 N 2517 Y
+G3 4 2517 N 2431 Y
+G2 5 2431 N 2388 Y
+G3 6 2388 N 2240 Y
+G3 7 2240 N 2078 Y
+quit;
+
+/* scenario 6: PA LOB - Tier Cuts*/
+
+data cmf_app2.vr7_val_young_app_all;
+input scorecard $ band upbound ub_inclusive $ lowbound lb_inclusive $;
+datalines;
+G3 1 . . 2776 Y
+G3 2 2776 N 2565 Y
+G3 3 2565 N 2470 Y
+G3 4 2470 N 2389 Y
+G3 5 2389 N 2347 Y
+G3 6 2347 N 2207 Y
+G2 7 2207 N 2117 Y
+G2 8 2117 N 2042 Y
+G2 9 2042 N . .
+quit;
+
+ML
+1:56 AM
+md las
+to Everyone
+/---------------------------------/
+/ G3_val_app_all (decile) /
+/---------------------------------/
+
+%macro scoreband_range_table(indata, outdata);
+data &outdata (rename=(varname_band=scoreband ub_var=upbound lb_var=lowbound));
+length scorecard $ 30 ub_inclusive lb_inclusive $1;
+set &indata (keep=varname_band band lb_var ub_var str);
+scorecard = 'G3';
+ub_inclusive = 'Y';
+lb_inclusive = 'Y';
+if band ne .;
+run;
+%mend;
+%scoreband_range_table(cmf_app.app_all_autobin_summry, cmf_app.vr1_val_young_app_all_decile)
+%scoreband_range_table(cmf_app.app_pr_autobin_summry, cmf_app.vr1_val_young_app_pr_decile)
+
+ML
+1:56 AM
+md las
+to Everyone
+%scoreband_range_table(cmf_app.app_sp_autobin_summry, cmf_app.vr1_val_young_app_sp_decile)
+%scoreband_range_table(cmf_app.app_np_autobin_summry, cmf_app.vr1_val_young_app_np_decile)
+%scoreband_range_table(cmf_app.app_direct_autobin_summry, cmf_app.vr1_val_young_app_direct_decile)
+%scoreband_range_table(cmf_app.app_pa_autobin_summry, cmf_app.vr1_val_young_app_pa_decile)
+%scoreband_range_table(cmf_app.app_carmax_autobin_summry, cmf_app.vr1_val_young_app_carmax)
+%scoreband_range_table(cmf_app.app_carmax_autobin_pentile_sum, cmf_app.vr2_val_young_app_carmax)
+
+/* SAS to CSV Conversion input dataset/
+/6months*/
+
+%let path = /prod/user/sam/coaf/npi/masi/model_monitoring/G3/cmf;
+%macro sas_to_csv(input,directory);
+libname data "&path/&directory/input";
+proc export data=data.&input
+outfile="&path./&directory./input/&input..csv"
+
+ML
+1:57 AM
+md las
+to Everyone
+dbms=csv
+replace;
+run;
+
+X "chmod -R 770 &path./&directory./input/&input..csv";
+%mend;
+%sas_to_csv(val_young_app_all_decile,g3_val_app_all);
+%sas_to_csv(val_young_app_direct_decile,g3_val_app_all);
+%sas_to_csv(val_young_app_sp_decile,g3_val_app_all);
+%sas_to_csv(val_young_app_np_decile,g3_val_app_all);
+%sas_to_csv(val_young_app_pr_decile,g3_val_app_all);
+%sas_to_csv(val_young_app_pa_decile,g3_val_app_all);
+%sas_to_csv(val_young_app_carmax,g3_val_app_all);
+
+%sas_to_csv(val_young_app_all,g3_val_app_all_tier);
+
+/* SAS to CSV Conversion scoreband tables*/
+
+ML
+1:57 AM
+md las
+to Everyone
+%include "&data./scripts/always_on/sas_to_csv_scoreband.sas";
+%let location = %str(/prod/user/sam/coaf/npi/masi/model_monitoring/G3/cmf/g3_val_app_all_tier/input);
+%band_score_csvrpt(val_young_app_all,rpt_id=1);
+%band_score_csvrpt(val_young_app_all,rpt_id=2);
+%band_score_csvrpt(val_young_app_all,rpt_id=3);
+%band_score_csvrpt(val_young_app_all,rpt_id=4);
+%band_score_csvrpt(val_young_app_all,rpt_id=5);
+%band_score_csvrpt(val_young_app_all,rpt_id=6);
+%band_score_csvrpt(val_young_app_all,rpt_id=7);
+%band_score_csvrpt(val_young_app_all,rpt_id=8);
+
+ML
+1:57 AM
+md las
+to Everyone
+%let location = %str(/prod/user/sam/coaf/npi/masi/model_monitoring/G3/cmf/g3_val_app_all/input);
+%band_score_csvrpt(val_young_app_all_decile,rpt_id=1);
+%band_score_csvrpt(val_young_app_pr_decile,rpt_id=1);
+%band_score_csvrpt(val_young_app_sp_decile,rpt_id=1);
+%band_score_csvrpt(val_young_app_np_decile,rpt_id=1);
+%band_score_csvrpt(val_young_app_direct_decile,rpt_id=1);
+%band_score_csvrpt(val_young_app_pa_decile,rpt_id=1);
+%band_score_csvrpt( val_young_app_carmax,rpt_id=1);
+%band_score_csvrpt( val_young_app_carmax,rpt_id=2);
+
+/Dup check/
+
+ML
+1:58 AM
+md las
+to Everyone
+%include "/prod/user/sam/coaf/npi/masi/model_monitoring/G3/data/scripts/always_on/g3_val_dup_check.sas";
+%val_dup_check(cmf_app, val_young_app_all_decile, val_young_app_all_dup, &cmf_app_path., &start_qrt., G3 Validity - Young Decile all)
+%val_dup_check(cmf_app, val_young_app_direct_decile, val_young_app_direct_dup, &cmf_app_path., &start_qrt., G3 Validity - Young Direct Decile)
+%val_dup_check(cmf_app, val_young_app_sp_decile, val_young_app_sp_dup, &cmf_app_path., &start_qrt., G3 Validity - Young SP Decile)
+%val_dup_check(cmf_app, val_young_app_np_decile, val_young_app_np_dup, &cmf_app_path., &start_qrt.,G3 Validity - Young NP Decile)
+%val_dup_check(cmf_app, val_young_app_pr_decile, val_young_app_pr_dup, &cmf_app_path., &start_qrt., G3 Validity - Young PR Decile)
+
+ML
+1:58 AM
+md las
+to Everyone
+%val_dup_check(cmf_app, val_young_app_pa_decile, val_young_app_pa_dup, &cmf_app_path., &start_qrt., G3 Validity - Young PA Decile)
+%val_dup_check(cmf_app, val_young_app_carmax, val_young_app_carmax_dup, &cmf_app_path., &start_qrt., G3 Validity - Young Carmax Decile)
+
+%let exl =&cmf./g3_val_app_all_tier/input;
+%val_dup_check(cmf_app2, val_young_app_all, val_young_app_dup, &exl., &start_qrt., G3 Validity - Young Tier)
