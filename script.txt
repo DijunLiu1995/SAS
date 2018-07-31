@@ -1,0 +1,164 @@
+
+md's Meeting
+Organizer:md lasMeeting ID:931-823-437
+Waiting to view md las's screen.
+
+ 
+Chat
+ML
+9:12 AM
+md las
+to Everyone
+/============================================================================/
+/* Program: chkVars (v#.#).sas /
+/ /
+/ Description: This macro opens a SAS dataset and checks to see if the /
+/ dataset contains a set of variables. The macro acts as a function /
+/ and returns a 1 to the calling macro if the variable is found and /
+/ a 0 to the calling macro if it is not found /
+/ /
+/ Parameters: /
+/ /
+/ chkData - The name of the dataset that contains the variable to /
+/ be checked
+
+ML
+9:12 AM
+md las
+to Everyone
+/* Parameters: /
+/ /
+/ chkData - The name of the dataset that contains the variable to /
+/ be checked /
+/ chkVarNames - A space delimited list of variables to check for in /
+/ specified dataset /
+/ chkDataType - The expected data type... N for numeric and C for char /
+/ /
+/ History: /
+/ ------- /
+/ Date Ver Who Description /
+/ ---------- --- --- ---------------------------------------
+
+ML
+9:12 AM
+md las
+to Everyone
+%macro chkvars(chkData,chkVarNames,chkDataType);
+
+%local chkvars;
+%local hasVar;
+%local dsid;
+%local varnum;
+%local varCnt;
+%local chkVarName;
+%local vartype;
+%local chektype;
+%local chki;
+
+%* Double check to ensure the data type value is captured correctly;
+
+%let chektype = %upcase (%substr (&chkDataType, 1, 1));
+
+%* Initialize the hasvar local variable to 0;
+
+%let hasVar = 0;
+
+%* Attempt to open the dataset specified by chkData;
+
+ML
+9:13 AM
+md las
+to Everyone
+%let dsid = %sysfunc (open (&chkData));
+
+%* If dsid is true (success) then check for the variable;
+
+%if &dsid %then %do;
+
+   %* Determine the count of variables supplied to the macro;
+
+   %let varCnt = %eval(%sysfunc(countc(&chkVarNames.,' '))+1); /* Count of variables in varChkNames list */
+
+   %* Loop through variable inputs and check if each exists in the target dataset;
+
+   %do chki = 1 %to &varCnt.;
+
+      %* Scan for first variable to check;
+
+       %let curChkName = %scan(&chkVarNames.,&chki.,' '); /* Extract a single variable from the var list */
+
+      %* Check for the variable in the dataset;
+
+     %let varnum = %sysfunc (varnum (&dsid, &curChkName.));
+
+       %* If varnum is true then check for the datatype as well;
+ML
+9:13 AM
+md las
+to Everyone
+           %if &varnum %then %do;
+
+               %* Check the datatype;
+
+              %let vartype = %sysfunc (vartype (&dsid, &varnum));
+
+               %* Confirm that vartype resolves to true;
+
+              %if (&vartype = &chektype) or (X = &chektype) %then %do;
+                   %put NOTE: The variable (&curChkName.) was found in the dataset (&chkData.);  
+                   %let hasvar=0;
+               %end;
+               %else %do;
+                   %put WARNING: The variable (&curChkName.) was not found in the dataset (&chkData.);  
+                   %let hasvar=1;
+                   %goto finish_chkErr;
+               %end;
+           %end;
+ML
+9:13 AM
+md las
+to Everyone
+            %else %do;
+                   %put WARNING: The variable (&curChkName.) was not found in the dataset (&chkData.);  
+                   %let hasvar=1;
+                   %goto finish_chkErr;
+            %end; 
+
+       %end;
+
+       %* Close the dataset;
+
+     %let dsid = %sysfunc (close (&dsid));
+%end;
+
+%finish_chkErr:
+
+ML
+9:13 AM
+md las
+to Everyone
+%* Set the return value chkVars to the value of hasVar;
+
+%let chkvars = &hasVar;
+
+%* Check the value of chkVars and set the _errorflag to YES if the variable was not found;
+
+%if %substr(&chkvars.,1,1)=0 %then %do;
+
+ %put NOTE: %eval(&chki. - 1) total variables were found successfully in the target dataset (&chkData.);
+%end;
+%else %do;
+
+ %put WARNING: At least one variable was not found and execution has passed back to the calling program; 
+%end;
+
+%* Return the value of chkVars as if the chkVars macro was a function;
+
+%exit: &chkVars
+%mend chkvars;
+
+
+Enter your message
+To:
+Send
+
