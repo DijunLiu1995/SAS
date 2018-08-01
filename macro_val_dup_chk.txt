@@ -1,0 +1,76 @@
+
+%macro val_dup_check(lib, indata, dest, outp, qtr, module);
+
+proc sql;
+create table &lib..&dest as
+select * from &lib..&indata
+group by app_id
+having count(*)>1;
+quit;
+
+%sysexec chmod 770 "&outp./&dest..sas7bdat";
+%sysexec rm -f "&outp./&dest.xlsx";
+
+proc sql noprint;
+select count(*) into :OBSCOUNT
+from &lib..&dest;
+quit;
+
+%if &OBSCOUNT. > 0 %then %do;
+%let val_dup_chk=&OBSCOUNT.;
+%if &OBSCOUNT. < 90000 %then %do;
+proc export
+data=&lib..&dest
+dbms=xlsx
+outfile="&outp./&dest..xlsx"
+replace;
+sheet="&dest.";
+run;
+%sysexec chmod 777 "&outp./&dest..xlsx";
+%end;
+%end;
+%else %let val_dup_chk=0;
+
+%put dup cnt check = &OBSCOUNT.;
+
+/if dup occurs in lastest qtr/
+proc sql noprint;
+select count(*) into :val_dup_curcnt
+from &lib..&dest
+where tranche = "&qtr.";
+quit;
+
+%if &val_dup_curcnt > 0 %then %do;
+%let curntfound=1;
+%put ERROR: dup in current latest quarter &qtr.;
+%end;
+%else %let curntfound=0;
+
+%put current quarter dup = &curntfound.;
+
+%if &val_dup_chk > 90000 %then %do;
+filename mailit email "masi_jobstatus@capitalone.com"
+subject="Dupe Check - &module : Too many records for excel output. please see &outp./dup";
+%end;
+
+%else %if &val_dup_chk %then %do;
+%if &curntfound %then
+%let t=Dupe Check - &module Data Pull Check : Duplicate records found (dup in current quarter);
+%else
+%let t=Dupe Check - &module Data Pull Check : Duplicate records found (dup in previous quarters);
+
+filename mailit email "masi_jobstatus@capitalone.com"
+subject="&t."
+attach=("&outp./&dest..xlsx" content_type="application/xlsx");
+%end;
+%else %do;
+filename mailit email "masi_jobstatus@capitalone.com"
+subject="Dupe Check - &module Data Pull Check : No duplicate records found";
+%end;
+
+data null;
+file mailit;
+run;
+%mend;
+
+
