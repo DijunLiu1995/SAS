@@ -1,0 +1,414 @@
+/*Modification for 2015Q3
+Remove prebur declined. It is done in Step2.0
+add prebur_ind
+Only append pre_buf_ind="Y" to cmf.
+Most of times, this is the same as adding all.
+*/
+options compress=binary mprint nomlogic;
+
+%let data=/prod/user/sam/coaf/npi/masi/model_monitoring/G3/data;
+%let cmf=/prod/user/sam/coaf/npi/masi/model_monitoring/G3/cmf;
+
+*X "mkdir -p &data./G3_VLM/benchmark";
+
+libname in "&data./G3_VLM";
+
+*X "mkdir -p &cmf./g3_vlm_efx/input";
+libname cmf_efx "&cmf./g3_vlm_efx/input";
+libname cmf_efx2 "&cmf./g3_vlm_efx_2/input";
+libname cmf_efx3 "&cmf./g3_vlm_efx_3/input";
+
+*X "mkdir -p &cmf./g3_vlm_xpn/input";
+libname cmf_xpn "&cmf./g3_vlm_xpn/input";
+libname cmf_xpn2 "&cmf./g3_vlm_xpn_2/input";
+libname cmf_xpn3 "&cmf./g3_vlm_xpn_3/input";
+
+ML
+12:14 AM
+md las
+to Everyone
+*X "mkdir -p &cmf./g3_vlm_tu/input";
+libname cmf_tu "&cmf./g3_vlm_tu/input";
+libname cmf_tu2 "&cmf./g3_vlm_tu_2/input";
+libname cmf_tu3 "&cmf./g3_vlm_tu_3/input";
+
+%global Mtranche1 Mtranche2 Mtranche3 start_d9 end_d9;
+
+%macro step3_1_vlm_cmf_data_pull(i,month_dt);
+
+%let i=%sysfunc(trim(&i.));
+%let report_dt = &month_dt.;
+/%let report_dt='01Mar2016'd;/
+data null;
+call symput('pull_mon' ,put(intnx('month',&report_dt,-&i.,'B'),mmyyn4.));
+startdt=intnx('month',&report_dt,-&i.,'B');
+mon=month(startdt);
+year=year(startdt);
+call symput('Mtranche', put(year100+mon, Z6.));
+call symput("Mtranche&i.", put(year100+mon, Z6.));
+run;
+
+ML
+12:14 AM
+md las
+to Everyone
+%put pull_mon &pull_mon;
+%put Mtranche &Mtranche;
+/* 03312014 - added CI003 */
+%let efx_var= CAP1KEY pre_bur_ind AF001
+AF002 AF009 AF011 AF040 AF041 AF048 AF049 AF051 AF070 AF071 AF073
+AF076 AF080 C2001 C2012 C2019 C2021 C2028 C2036 C2040 C2042 C2045
+C2056 C2065 C2067 CI001 CI002 CI003 CI004 CI006 CI010 CI012 CI014 CI019
+CI024 CI029 CI030 CI032 CI037 CI038 CI039 CI041 CI042 CI043 CI044
+CI045 CI048 CI055 CI056 CI057 CI058 CI059 CI060 CI061 CI065 CI083 CI085
+CI086 CI087 CI089 CI091 CI092 CI093 CI097 CI098 CI101 CI105 CI106
+CI107 CI108 CI111 CI114 CI121 CI124 CI126 CI136 CI137 CI146 CI149
+CI152 CI153 CI155 CI156 CI159 CI160 CI163 CI164 CI165 CI166 CI168
+CI189 CI192 CI197 CI199 CI200 ED001 ED039 ED040 ED041 ED074 ED076
+ED077 ED078 ED080 ED081 ED082 HE001 HE002 HE027 HE028 HE033 HE034
+
+ML
+12:14 AM
+md las
+to Everyone
+          HE040 HE041 HE047 IL001 IL002 IL005 IL007 IL008 IL013 IL014 IL021
+          IL022 IL023 IL024 IL040 IL041 IL043 IL047 IL048 IL051 IL057 IL065
+          IL066 IL068 MG001 MG002 MG027 MG028 MG033 MG034 MG040 MG041 MG047
+          RE001 RE002 RE027 RE028 RE033 RE034 RE040 RE041 RE047 RL001 RL002
+          RL011 RL040 RL041 RL043 RL047 RL048 RL049 RL057 RL059 RL060 RL061
+          RL065 RL066 RL068 app_id appdate efx_fico;
+/* 03312014 - added CI003 */
+%let xpn_var= CAP1KEY pre_bur_ind AF001
+AF002 AF003 AF004 AF005 AF011 AF016 AF021 AF022 AF027 AF028 AF033 AF034
+AF040 AF041 AF048 AF049 AF059 AF061 AF065 AF066 AF068 AF070 AF071 AF073
+AF078 C2016 C2035 C2036 C2043 C2054 C2055 C2056 C2059 C2064 C2065 CI001
+CI002 CI003 CI004 CI010 CI012 CI018 CI022 CI029 CI031 CI032 CI037 CI038 CI039
+
+ML
+12:15 AM
+md las
+to Everyone
+          CI041 CI042 CI043 CI044 CI045 CI048 CI049 CI059 CI060 CI061 CI063 CI064
+          CI065 CI083 CI085 CI086 CI087 CI089 CI091 CI092 CI093 CI098 CI101 CI105 CI107
+          CI108 CI114 CI121 CI123 CI124 CI126 CI136 CI137 CI145 CI146 CI148 CI149
+          CI150 CI151 CI152 CI153 CI155 CI156 CI159 CI160 CI163 CI164 CI165 CI166
+          CI167 CI168 CI170 CI178 CI181 CI182 CI189 CI192 CI193 CI197 CI202 ED001
+          ED039 ED040 ED041 ED061 ED076 ED077 ED078 ED080 ED081 ED082 HE001 HE002
+          HE032 HE038 HE040 HE041 HE047 HE056 HE065 HE066 HE067 IL001 IL002 IL005
+          IL009 IL011 IL040 IL041 IL043 IL047 IL048 IL058 IL059 MG001 MG002 MG032
+          MG038 MG040 MG041 MG047 MG056 MG065 MG066 MG067 RE001 RE002 RE032 RE038
+          RE040 RE041 RE047 RE056 RE065 RE066 RE067 RL001 RL002 RL009 RL013 RL014
+          RL027 RL028 RL029 RL030 RL033 RL034 RL035 RL036 RL040 RL041 RL043 RL046
+          RL047 RL048 RL049 RL056 RL059 RL061 RL065 RL066 RL068 app_
+ML
+12:15 AM
+md las
+to Everyone
+app_id appdate xpn_fico
+
+ML
+12:15 AM
+md las
+to Everyone
+/data bench_xpn; set bench.VLMBENCHMARK_XPN(keep=&xpn_var); run;/
+/There were 105827 observations read from the data set BENCH.VLMBENCHMARK_XPN/
+
+/data cmf_xpn.g2_vlm_xpn;
+set bench_xpn;
+length Mtranche $8;
+scorecard="Overall";
+Mtranche="bench";
+run;/
+
+/* 03312014 - added CI003 */
+%let tu_var=CAP1KEY pre_bur_ind AF001
+AF002 AF009 AF011 AF021 AF022 AF027 AF028 AF033 AF034 AF040 AF041 AF043 AF048
+AF049 AF055 AF075 AF077 AF078 C2017 C2018 C2019 C2025 C2036 C2037 C2038 C2040
+C2041 C2043 C2057 C2063 C2069 CI002 CI003 CI004 CI006 CI010 CI012 CI013 CI014 CI018
+
+ML
+12:15 AM
+md las
+to Everyone
+        CI019 CI024 CI029 CI030 CI033 CI037 CI038 CI039 CI042 CI043 CI044 CI045 CI048
+        CI055 CI056 CI057 CI059 CI060 CI061 CI065 CI074 CI076 CI083 CI085 CI086 CI087 CI090
+        CI092 CI093 CI101 CI105 CI106 CI107 CI111 CI114 CI117 CI124 CI126 CI129 CI136
+        CI137 CI139 CI140 CI143 CI145 CI146 CI147 CI148 CI149 CI150 CI151 CI152 CI153
+        CI155 CI156 CI159 CI163 CI164 CI165 CI166 CI167 CI168 CI169 CI171 CI172 CI175
+        CI177 CI182 CI189 CI192 CI194 CI196 CI204 ED001 ED039 ED040 ED041 ED074 ED076
+        ED077 ED078 ED080 ED081 ED082 HE001 HE002 HE016 HE040 HE041 HE047 IL001 IL002
+        IL005 IL007 IL008 IL009 IL013 IL014 IL016 IL018 IL020 IL021 IL022 IL023 IL024
+        IL039 IL040 IL041 IL043 IL047 IL048 IL049 IL065 IL066 IL068 MG001 MG002 MG016
+        MG040 MG041 MG047 RE001 RE002 RE016 RE040 RE041 RE047 RL001 RL002 RL009 RL015
+        RL016 RL040 RL041 RL043 RL047 RL048 RL049 RL065 RL066 RL068 app_id appdate 
+        tu_fico;
+ML
+12:16 AM
+md las
+to Everyone
+%let efx_var1= CAP1KEY pre_bur_ind prsweight scorecard Mtranche ci2cpdcure9mos AF001
+AF002 AF009 AF011 AF040 AF041 AF048 AF049 AF051 AF070 AF071 AF073
+AF076 AF080 C2001 C2012 C2019 C2021 C2028 C2036 C2040 C2042 C2045
+C2056 C2065 C2067 CI001 CI002 CI003 CI004 CI006 CI010 CI012 CI014 CI019
+CI024 CI029 CI030 CI032 CI037 CI038 CI039 CI041 CI042 CI043 CI044
+CI045 CI048 CI055 CI056 CI057 CI058 CI059 CI060 CI061 CI065 CI083
+CI085 CI086 CI087 CI089 app_id appdate efx_fico;
+
+ML
+12:16 AM
+md las
+to Everyone
+%let xpn_var1= CAP1KEY pre_bur_ind prsweight scorecard Mtranche ci2cpdcure9mos AF001
+AF002 AF003 AF004 AF005 AF011 AF016 AF021 AF022 AF027 AF028 AF033 AF034
+AF040 AF041 AF048 AF049 AF059 AF061 AF065 AF066 AF068 AF070 AF071 AF073
+AF078 C2016 C2035 C2036 C2043 C2054 C2055 C2056 C2059 C2064 C2065 CI001
+CI002 CI003 CI004 CI010 CI012 CI018 CI022 CI029 CI031 CI032 CI037 CI038 CI039
+CI041 CI042 CI043 CI044 CI045 CI048 CI049 CI059 CI060 CI061
+app_id appdate xpn_fico;
+
+ML
+12:16 AM
+md las
+to Everyone
+%let efx_var2= CAP1KEY pre_bur_ind prsweight scorecard Mtranche
+CI091 CI092 CI093 CI097 CI098 CI101 CI105 CI106
+CI107 CI108 CI111 CI114 CI121 CI124 CI126 CI136 CI137 CI146 CI149
+CI152 CI153 CI155 CI156 CI159 CI160 CI163 CI164 CI165 CI166 CI168
+CI189 CI192 CI197 CI199 CI200 ED001 ED039 ED040 ED041 ED074 ED076
+ED077 ED078 ED080 ED081 ED082 HE001 HE002 HE027 HE028 HE033 HE034
+HE040 HE041 HE047 IL001 IL002 IL005 IL007 IL008 app_id appdate efx_fico;
+
+ML
+12:16 AM
+md las
+to Everyone
+%let efx_var3= CAP1KEY pre_bur_ind prsweight scorecard Mtranche
+IL013 IL014 IL021 IL022 IL023 IL024 IL040 IL041 IL043 IL047 IL048
+IL051 IL057 IL065 IL066 IL068 MG001 MG002 MG027 MG028 MG033 MG034
+MG040 MG041 MG047 RE001 RE002 RE027 RE028 RE033 RE034 RE040 RE041
+RE047 RL001 RL002 RL011 RL040 RL041 RL043 RL047 RL048 RL049 RL057
+RL059 RL060 RL061 RL065 RL066 RL068 app_id appdate efx_fico;
+
+ML
+12:16 AM
+md las
+to Everyone
+/data bench_tu; set bench.VLMBENCHMARK_TU(keep=&tu_var); run;/
+/There were 106056 observations read from the data set BENCH.VLMBENCHMARK_TU/
+
+/data cmf_tu.g2_vlm_tu;
+set bench_tu;
+length Mtranche $8;
+scorecard="Overall";
+Mtranche="bench";
+run;/
+
+%macro append(base, indata, keep, SC);
+/Assign weight: 1 for app level; for person level, 1 for single and 1/2 for joint/
+proc sort data=&indata.; by app_id borrower_id; run;
+
+ML
+12:17 AM
+md las
+to Everyone
+data g3_vlm_weighted (compress=binary reuse=yes);
+length scorecard $8;
+set &indata. (%if &keep ne %then %do; keep=&keep.%end;);
+by app_id;
+if first.app_id=last.app_id then prsweight=1;
+else prsweight=0.5;
+scorecard="&SC.";
+Mtranche="&Mtranche.";
+ci2cpdcure9mos=sum(ci042,-ci048,-ci037,-ci038,-ci039,-ci043,-ci044,-ci045);
+run;
+
+proc sql;
+delete from &base.
+where Mtranche="&Mtranche.";
+quit;
+
+ML
+12:17 AM
+md las
+to Everyone
+proc append base=&base.
+data=g3_vlm_weighted force;
+run;
+
+%mend;
+
+%append(base=in.g3_vlm_efx_dw, indata=in.PRS_DMS_EFX_&pull_mon.ed, keep=&efx_var, SC=%str(EFX));
+%append(base=in.g3_vlm_xpn_dw, indata=in.PRS_DMS_XPN&pull_mon.ed, keep=&xpn_var, SC=%str(XPN));
+%append(base=in.g3_vlm_tu_dw, indata=in.PRS_DMS_TU&pull_mon._ed, keep=&tu_var, SC=%str(TU));
+
+/* Added Jalaja*/
+%macro append(base, indata, keep,crnt_qtr_data);
+data g3_vlm_bur (compress=binary reuse=yes);
+set &indata. (%if &keep ne %then %do; keep=&keep.%end;);
+if Mtranche="&Mtranche.";
+run;
+
+proc sql;
+delete from &base.
+where Mtranche="&Mtranche.";
+quit;
+
+ML
+12:17 AM
+md las
+to Everyone
+proc append base=&base.
+data=g3_vlm_bur force;
+run;
+
+proc sql;
+delete from &crnt_qtr_data.
+where Mtranche="&Mtranche.";
+quit;
+
+proc append base=&crnt_qtr_data.
+data=g3_vlm_bur force;
+run;
+
+proc sql;
+delete from &crnt_qtr_data.
+where appdate < "&start_d9"d OR appdate > "&end_d9"d;
+quit;
+
+%mend;
+
+ML
+12:17 AM
+md las
+to Everyone
+%append(base=cmf_efx.g3_vlm_efx_dw, indata=in.g3_vlm_efx_dw, keep=&efx_var1, crnt_qtr_data=cmf_efx.g3_vlm_efx_dw_cq );
+%append(base=cmf_xpn.g3_vlm_xpn_dw, indata=in.g3_vlm_xpn_dw, keep=&xpn_var1, crnt_qtr_data=cmf_xpn.g3_vlm_xpn_dw_cq );
+%append(base=cmf_tu.g3_vlm_tu_dw, indata=in.g3_vlm_tu_dw, keep=&tu_var1, crnt_qtr_data=cmf_tu.g3_vlm_tu_dw_cq );
+
+%append(base=cmf_efx2.g3_vlm_efx_dw, indata=in.g3_vlm_efx_dw, keep=&efx_var2, crnt_qtr_data=cmf_efx2.g3_vlm_efx_dw_cq );
+%append(base=cmf_xpn2.g3_vlm_xpn_dw, indata=in.g3_vlm_xpn_dw, keep=&xpn_var2, crnt_qtr_data=cmf_xpn2.g3_vlm_xpn_dw_cq );
+%append(base=cmf_tu2.g3_vlm_tu_dw, indata=in.g3_vlm_tu_dw, keep=&tu_var2, crnt_qtr_data=cmf_tu2.g3_vlm_tu_dw_cq );
+
+ML
+12:17 AM
+md las
+to Everyone
+%append(base=cmf_efx3.g3_vlm_efx_dw, indata=in.g3_vlm_efx_dw, keep=&efx_var3, crnt_qtr_data=cmf_efx3.g3_vlm_efx_dw_cq);
+%append(base=cmf_xpn3.g3_vlm_xpn_dw, indata=in.g3_vlm_xpn_dw, keep=&xpn_var3, crnt_qtr_data=cmf_xpn3.g3_vlm_xpn_dw_cq );
+%append(base=cmf_tu3.g3_vlm_tu_dw, indata=in.g3_vlm_tu_dw, keep=&tu_var3, crnt_qtr_data=cmf_tu3.g3_vlm_tu_dw_cq );
+
+/End Jalaja/
+%mend step3_1_vlm_cmf_data_pull;
+
+/*
+%step3_1_vlm_cmf_data_pull(1);
+%step3_1_vlm_cmf_data_pull(2);
+%step3_1_vlm_cmf_data_pull(3);
+
+ML
+12:17 AM
+md las
+to Everyone
+/
+%macro vlm_cmf_loop;
+/
+%let startdt=2017-03-01;
+%let enddt=2017-05-31;
+*/
+%let startdt = %sysget(startdt);
+%let enddt = %sysget(enddt);
+
+%let start=%sysfunc(inputn(&startdt, yymmdd10.));
+%let end=%sysfunc(inputn(&enddt, yymmdd10.));
+
+%let start_d9=%sysfunc(inputn(&startdt, yymmdd10.), date9.);
+%let end_d9=%sysfunc(inputn(&enddt, yymmdd10.), date9.);
+
+data null;
+call symput ('months', intck('month', &start., &end. ));
+run;
+
+ML
+12:18 AM
+md las
+to Everyone
+%put =&months.;
+
+%do i = 0 %to &months.;
+%put =&i.;
+%step3_1_vlm_cmf_data_pull(&i., &end.);
+
+%end;
+%mend;
+%vlm_cmf_loop;
+
+%macro aggr_method(base,cur_qtr_data);
+
+data &base.;
+set &base.;
+if appdate >= "&start_d9"d AND appdate <= "&end_d9"d then curqtr=1;
+else curqtr=0;
+run;
+
+ML
+12:18 AM
+md las
+to Everyone
+/** TESTING */
+title "&base.";
+proc freq data=&base.;
+table Mtranchecurqtr;
+run;
+
+data &cur_qtr_data.;
+set &base. (where=(appdate >= "&start_d9"d AND appdate <= "&end_d9"d ));
+run;
+
+title "&cur_qtr_data.";
+proc freq data=&cur_qtr_data.;
+table Mtranche*curqtr;
+run;
+
+/*
+proc print data=&base. (obs=5);
+run;
+
+ML
+12:18 AM
+md las
+to Everyone
+/
+/TESTING**/
+%mend;
+%aggr_method(cmf_efx.g3_vlm_efx_dw,cmf_efx.g3_vlm_efx_dw_cq);
+%aggr_method(cmf_xpn.g3_vlm_xpn_dw,cmf_xpn.g3_vlm_xpn_dw_cq);
+%aggr_method(cmf_tu.g3_vlm_tu_dw,cmf_tu.g3_vlm_tu_dw_cq);
+
+%aggr_method(cmf_efx2.g3_vlm_efx_dw,cmf_efx2.g3_vlm_efx_dw_cq);
+%aggr_method(cmf_xpn2.g3_vlm_xpn_dw, cmf_xpn2.g3_vlm_xpn_dw_cq);
+%aggr_method(cmf_tu2.g3_vlm_tu_dw, cmf_tu2.g3_vlm_tu_dw_cq);
+
+%aggr_method(cmf_efx3.g3_vlm_efx_dw, cmf_efx3.g3_vlm_efx_dw_cq);
+%aggr_method(cmf_xpn3.g3_vlm_xpn_dw, cmf_xpn3.g3_vlm_xpn_dw_cq);
+%aggr_method(cmf_tu3.g3_vlm_tu_dw, cmf_tu3.g3_vlm_tu_dw_cq);
+
+ML
+12:18 AM
+md las
+to Everyone
+/Current quarter data/
+/*
+%aggr_method(cmf_efx.g3_vlm_efx_dw_cq);
+%aggr_method(cmf_xpn.g3_vlm_xpn_dw_cq);
+%aggr_method(cmf_tu.g3_vlm_tu_dw_cq);
+
+%aggr_method(cmf_efx2.g3_vlm_efx_dw_cq);
+%aggr_method(cmf_xpn2.g3_vlm_xpn_dw_cq);
+%aggr_method(cmf_tu2.g3_vlm_tu_dw_cq);
+
+%aggr_method(cmf_efx3.g3_vlm_efx_dw_cq);
+%aggr_method(cmf_xpn3.g3_vlm_xpn_dw_cq);
+%aggr_method(cmf_tu3.g3_vlm_tu_dw_cq);
+*/
+
+
