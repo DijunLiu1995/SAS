@@ -1,0 +1,224 @@
+
+import pandas as pd
+import numpy as np
+import numpy.testing as npt
+import datetime
+import datetime as dt
+
+def create_dates(tday):
+# start_dt and end_dt and current_qtr are calculated
+	if tday.month in [1,2]:
+		start_dt = dt.date(tday.year-1, 8, 1)
+		end_dt = dt.date(tday.year-1, 11, 1)-dt.timedelta(days=1)
+		curr_q = str(tday.year-1)+'Q3'
+	elif tday.month in [3,4,5]:
+		start_dt = dt.date(tday.year-1, 11, 1)
+		curr_q = str(tday.year-1)+'Q4'
+		end_dt = dt.date(tday.year, 2, 1) - dt.timedelta(days=1)
+	elif tday.month in [6,7,8]:
+		start_dt = dt.date(tday.year, 2, 1)
+		end_dt = dt.date(tday.year, 5, 1) - dt.timedelta(days=1)
+		curr_q = str(tday.year)+'Q1'
+	elif tday.month in [9,10,11]:
+		start_dt = dt.date(tday.year, 5, 1)
+		end_dt = dt.date(tday.year, 8, 1) - dt.timedelta(days=1)
+		curr_q = str(tday.year)+'Q2'
+
+	else:
+ 		start_dt = dt.date(tday.year, 8, 1)
+   		end_dt = dt.date(tday.year, 11, 1) - dt.timedelta(days=1)
+    		curr_q = str(tday.year)+'Q3'
+	return start_dt, end_dt, curr_q
+
+tday = dt.date.today()
+start_dt, end_dt, curr_q = create_dates(tday)
+
+DATA_PATH = '/home/ec2-user/qmm/data/' + curr_q + '/'
+PSI_INPUT_PATH = DATA_PATH + 'psi/input/'
+PSI_OUTPUT_PATH = DATA_PATH + 'psi/output/'
+VLM_INPUT_PATH = DATA_PATH + 'vlm/input/'
+VLM_OUTPUT_PATH = DATA_PATH + 'vlm/output/'
+VAL_INPUT_PATH = DATA_PATH + 'val/input/'
+VAL_OUTPUT_PATH = DATA_PATH + 'val/output/'
+VLI_INPUT_PATH = DATA_PATH + 'vli/input/'
+VLI_OUTPUT_PATH = DATA_PATH + 'vli/output/'
+
+S3_PATH = 'S3://aws-coaf-athena/QMM/data/' + curr_q + '/'
+S3_PSI_INPUT_PATH = S3_PATH + 'psi/input/'
+S3_PSI_OUTPUT_PATH = S3_PATH + 'psi/output/'
+S3_VLM_INPUT_PATH = S3_PATH + 'vlm/input/'
+S3_VLM_OUTPUT_PATH = S3_PATH + 'vlm/output/'
+S3_VAL_INPUT_PATH = S3_PATH + 'val/input/'
+S3_VAL_OUTPUT_PATH = DATA_PATH + 'val/output/'
+S3_VLI_INPUT_PATH = S3_PATH + 'vli/input/'
+S3_VLI_OUTPUT_PATH = S3_PATH + 'vli/output/'
+
+
+df = pd.read_csv('/home/ec2-user/qmm_data/step2_input/g3_vlm_efx_dw_currq.csv')
+df['appDate'] = pd.to_datetime(df['appDate'], format='%d%b%Y')
+df.columns = map(str.lower, df.columns)
+df['app_date']='NaN'
+
+
+df_ip = pd.read_csv('/home/ec2-user/qmm_data/step2_input/prs_dms_efx_0618_all.csv')
+df_ip['appdate']=pd.to_datetime(df_ip['appdate'],format ='%d%b%Y')
+df_ip.columns = map(str.lower, df_ip.columns)
+
+
+df_op = pd.read_csv('/home/ec2-user/qmm_data/step2_output/g3_vlm_efx_dw_cq.csv')
+df_op.columns = map(str.lower, df_op.columns)
+df_op['appdate'] = pd.to_datetime(df_op['appdate'])
+
+
+op_cols=[]
+for i in df_op.columns:
+op_cols.append(i.lower())
+
+
+efx_var1= "CAP1KEY pre_bur_ind prsweight Scorecard Mtranche ci2cpdcure9mos AF001 \
+AF002 AF009 AF011 AF040 AF041 AF048 AF049 AF051 AF070 AF071 AF073 \
+AF076 AF080 C2001 C2012 C2019 C2021 C2028 C2036 C2040 C2042 C2045 \
+C2056 C2065 C2067 CI001 CI002 CI003 CI004 CI006 CI010 CI012 CI014 CI019 \
+CI024 CI029 CI030 CI032 CI037 CI038 CI039 CI041 CI042 CI043 CI044 \
+CI045 CI048 CI055 CI056 CI057 CI058 CI059 CI060 CI061 CI065 CI083 \
+CI085 CI086 CI087 CI089 app_id appdate efx_fico"
+
+
+efx_var="CAP1KEY PRE_BUR_IND AF001 \
+AF002 AF009 AF011 AF040 AF041 AF048 AF049 AF051 AF070 AF071 AF073 \
+AF076 AF080 C2001 C2012 C2019 C2021 C2028 C2036 C2040 C2042 C2045 \
+C2056 C2065 C2067 CI001 CI002 CI003 CI004 CI006 CI010 CI012 CI014 CI019 \
+CI024 CI029 CI030 CI032 CI037 CI038 CI039 CI041 CI042 CI043 CI044 \
+CI045 CI048 CI055 CI056 CI057 CI058 CI059 CI060 CI061 CI065 CI083 CI085 \
+CI086 CI087 CI089 CI091 CI092 CI093 CI097 CI098 CI101 CI105 CI106 \
+CI107 CI108 CI111 CI114 CI121 CI124 CI126 CI136 CI137 CI146 CI149 \
+CI152 CI153 CI155 CI156 CI159 CI160 CI163 CI164 CI165 CI166 CI168 \
+CI189 CI192 CI197 CI199 CI200 ED001 ED039 ED040 ED041 ED074 ED076 \
+ED077 ED078 ED080 ED081 ED082 HE001 HE002 HE027 HE028 HE033 HE034 \
+HE040 HE041 HE047 IL001 IL002 IL005 IL007 IL008 IL013 IL014 IL021 \
+IL022 IL023 IL024 IL040 IL041 IL043 IL047 IL048 IL051 IL057 IL065 \
+IL066 IL068 MG001 MG002 MG027 MG028 MG033 MG034 MG040 MG041 MG047 \
+RE001 RE002 RE027 RE028 RE033 RE034 RE040 RE041 RE047 RL001 RL002 \
+RL011 RL040 RL041 RL043 RL047 RL048 RL049 RL057 RL059 RL060 RL061 \
+RL065 RL066 RL068 app_id appdate efx_fico"
+
+
+efx_var=efx_var.lower()
+efx_var=efx_var.split()
+efx_var1=efx_var1.lower()
+efx_var1=efx_var1.split()
+
+
+st_date=datetime.datetime.strptime('06/01/2018','%m/%d/%Y')
+
+en_date=datetime.datetime.strptime('06/30/2018','%m/%d/%Y')
+mm=st_date.month
+yyyy=st_date.year
+mtranche=yyyy*100+mm
+print(mtranche)
+
+
+def append(base,indata,keep,SC):
+	indata=indata.sort_values(by=['app_id','borrower_id'],ascending=True)
+	print("Indata",indata.shape)
+	g3_vlm_weighted_dups=indata[indata.duplicated(['app_id'])]
+	#g3_vlm_weighted_dups['prsweight']=0.5
+	print("g3_vlm_weighted_dups",g3_vlm_weighted_dups.shape)
+	#g3_vlm_weighted=indata.drop_duplicates(subset=['app_id'],keep='first')
+	g3_vlm_weighted=indata.copy()
+	g3_vlm_weighted.loc[g3_vlm_weighted['app_id'].isin(g3_vlm_weighted_dups['app_id'].unique()),'prsweight']=0.5
+	#g3_vlm_weighted.loc[g3_vlm_weighted['prsweight'].isna,'prsweight']=1
+	g3_vlm_weighted['prsweight']=g3_vlm_weighted['prsweight'].replace(np.nan,1)
+	print(g3_vlm_weighted['prsweight'].unique())
+	#g3_vlm_weighted['prsweight']=1
+	#g3_vlm_weighted.append(g3_vlm_weighted_dups)
+	g3_vlm_weighted['scorecard']=SC
+	g3_vlm_weighted['mtranche']=mtranche
+	g3_vlm_weighted['ci2cpdcure9mos']=   g3_vlm_weighted['ci042'] \
+                                    	-g3_vlm_weighted['ci048']\
+                                    	-g3_vlm_weighted['ci037']\
+                                    	-g3_vlm_weighted['ci038']\
+                                    	-g3_vlm_weighted['ci039']\
+                                   	 -g3_vlm_weighted['ci043']\
+                                    	-g3_vlm_weighted['ci044']\
+                                    	-g3_vlm_weighted['ci045']
+	print("G3_VLM",g3_vlm_weighted.shape)
+	base_del=base.drop(base[base['mtranche']==mtranche].index)
+	print("Number of rows in base",base.shape[0])
+	print("Number of rows after deleting ",base_del.shape[0])
+	#g3_vlm_weighted=g3_vlm_weighted[keep]
+	base=base_del.append(g3_vlm_weighted)
+	return base
+
+append_op=append(df,df_ip,keep=op_cols,SC="EFX")
+append_op['mtranche'].unique()
+append_op_fin=append_op[(append_op['appdate'] >= st_date) & (append_op['appdate'] <= en_date)]
+
+if [(append_op_fin['appdate'] >= st_date) & (append_op_fin['appdate'] <= en_date)]:
+	append_op_fin['curqtr'] = 1
+else:
+	append_op_fin['curqtr'] = 0
+
+append_op_fin[op_cols]
+append_data_frame = append_op_fin[op_cols]
+append_data_frame['prsweight'].unique()
+
+
+def assert_frames_equal(actual, expected, use_close=False):
+
+	"""
+	Compare DataFrame items by index and column and
+	raise AssertionError if any item is not equal.
+
+	Ordering is unimportant, items are compared only by label.
+	NaN and infinite values are supported.
+
+	Parameters
+	----------
+	actual : pandas.DataFrame
+	expected : pandas.DataFrame
+	use_close : bool, optional
+   	 If True, use numpy.testing.assert_allclose instead of
+   	 numpy.testing.assert_equal.
+
+	"""
+	if use_close:
+	    comp = npt.assert_allclose
+	else:
+	    comp = npt.assert_equal
+
+	assert (isinstance(actual, pd.DataFrame) and
+	        isinstance(expected, pd.DataFrame)), \
+	    'Inputs must both be pandas DataFrames.'
+
+	for i, exp_row in expected.iterrows():
+	    assert i in actual.index, 'Expected row {!r} not found.'.format(i)
+
+	    act_row = actual.loc[i]
+
+	    for j, exp_item in exp_row.iteritems():
+	        assert j in act_row.index, \
+	            'Expected column {!r} not found.'.format(j)
+
+	        act_item = act_row[j]
+	        try:
+	            comp(act_item, exp_item)
+ 	            
+	        except AssertionError as e:
+	            raise AssertionError(
+	                e.message + '\n\nColumn: {!r}\nRow: {!r}'.format(j, i))
+
+a_new=append_data_frame.head(10000)
+print a_new
+
+z = df_op.head(10000)
+print z
+
+
+append_sub=append_data_frame[append_data_frame['app_id'].isin(df_op['app_id'].unique())]
+print(new_sub.shape)
+append_sub.index=df_op.index
+
+assert_frames_equal(df_op.head(40000), append_sub.head(40000), use_close=False)
+
+
