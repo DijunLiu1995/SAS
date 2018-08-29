@@ -1,0 +1,342 @@
+/*This is to pull g2 score for the g3 loans and append them to cmf*/
+options compress=binary mprint mlogic;
+options ERRORABEND;
+
+/*
+%let report_dt=today();*/
+/*%let report_dt='01JUN2016'd;*/
+
+/*
+
+data null;
+call symput('start_qrt',put(intnx('quarter',&report_dt,-2,'B'),yyq6.));
+call symput('pull_qrt' ,put(intnx('quarter',&report_dt,0,'B'),yyq6.));
+run;
+
+%put Monitoring quarter is &pull_qrt;
+%put Monitoring Loans booked in the whole quater 6 month ago in &start_qrt;
+*/
+
+%let startdt = %sysget(startdt);
+%let enddt = %sysget(enddt);
+
+%let start=%sysfunc(inputn(&startdt, yymmdd10.));
+%let end=%sysfunc(inputn(&enddt, yymmdd10.));
+
+
+data null;
+call symput('start_dt', put(intnx('month',&start.,-6,'B'),yymmddd10.) );
+call symput('end_dt', put(intnx('month',&end.,-6,'E'),yymmddd10.) );
+call symput('start_qrt' ,put(intnx('quarter',intnx('month',&start,1,'B'),-2,'B'),yyq6.));
+call symput('pull_qrt' ,put(intnx('quarter',(intnx('month', &start., 1)),0,'B'),yyq6.));
+run;
+
+%let start_dt_d9=%sysfunc(inputn(&start_dt, yymmdd10.), date9.);
+%let end_dt_d9=%sysfunc(inputn(&end_dt, yymmdd10.), date9.);
+
+/*modifying by Zhufeng end*/
+%put start date is &start_dt; /2016-06-01/
+%put end date is &end_dt; /2016-08-31/
+%put &start_dt_d9;
+%put &end_dt_d9;
+%put &pull_qrt; /2017Q1/
+%put &start_qrt; /2016Q3/
+
+
+/****Assign libname for this quarter***/
+%let data=/prod/user/sam/coaf/npi/masi/model_monitoring/G3/data;
+%let cmf=/prod/user/sam/coaf/npi/masi/model_monitoring/G3/cmf;
+%let cmf_app_path = &cmf./g3_g2_val_app_all/input;
+
+libname val "&data./G3_Validity";
+
+libname cmf_app "&cmf./g3_g2_val_app_all/input";
+libname cmf_app2 "&cmf./g3_g2_val_app_all_tier/input";
+
+libname g2 "/prod/user/sam/coaf/npi/stat/decisionmodel_da/g3v3_rollout_monitoring/retroscore_g2_g3app/output/";
+%let pull_qrt=%sysfunc(lowcase(&pull_qrt.));
+
+data temp;
+set val.val_young_app_all
+/*(where=(tranche="&start_qrt."));*/
+(where=( app_date >= "&start_dt_d9"d AND app_date <= "&end_dt_d9"d));
+run;
+
+proc sort data=g2._g2score_g3app nodupkey out=g2_no_dup;by app_id;run;
+/*211289 observations with duplicate key values were deleted*/
+proc sort data=g2._g2score_g3app nodupkey out=test_no_dup;by app_id g2_score;run;
+/* 211237 observations with duplicate key values were deleted.*/
+
+
+proc sql;
+create table temp_g2
+as select
+a.*,
+b.g2_score
+from
+temp as a
+left join
+g2_no_dup as b
+on a.app_id =b.app_id;
+quit;
+
+proc sql;
+delete from val.val_young_app_all_g2
+/*where tranche="&start_qrt.";*/
+where app_date >= "&start_dt_d9"d AND app_date <= "&end_dt_d9"d;
+quit;
+
+proc append base=val.val_young_app_all_g2 data=temp_g2;run;
+proc freq data=val.val_young_app_all_g2;table tranche;run;
+proc means data=val.val_young_app_all_g2 N NMISS mean std;
+var g2_score;
+class tranche;
+run;
+
+
+proc means data=val.val_young_app_all_g2 N NMISS mean std;
+
+class tranche lob;
+run;
+
+/*Added by Sandeep to include 361,362,363 to direct lob*/
+/*data val.val_young_app_all_g2;
+
+set val.val_young_app_all_g2;
+if lob_id IN (252,254) or upcase(seg_1)='DIRECT' then lob_desc='Direct';
+run;
+
+data val.val_young_app_all_g2;
+
+set val.val_young_app_all_g2;
+if lob_id IN (252,254) or upcase(seg_1)='DIRECT' then lob='direct';
+run;*/
+
+proc freq data=val.val_young_app_all_g2(where=(missing(g2_score)));table app_date*lob_desc;run;
+
+data val.miss_g2;
+set val.val_young_app_all_g2(where=(missing(g2_score)));
+run;
+
+
+/*business tiers*/
+data cmf_app2.val_young_app_all;
+set val.val_young_app_all_g2(where=(not missing(g2_score)));
+
+length pa_tier $2.;
+if lob='pr' then do;
+if g3_score >= 3013 then pr_tier=0;
+else if g3_score >= 2776 then pr_tier=1;
+else if g3_score >= 2565 then pr_tier=2;
+else if g3_score >= 2470 then pr_tier=3;
+else if g3_score >= 2389 then pr_tier=4;
+else if g3_score >= 2347 then pr_tier=5;
+end;
+
+else if lob='np' then do;
+if g3_score >= 2776 then np_tier=1;
+else if g3_score >= 2565 then np_tier=2;
+else if g3_score >= 2470 then np_tier=3;
+else if g3_score >= 2389 then np_tier=4;
+else if g3_score >= 2347 then np_tier=5;
+else if g3_score >= 2207 then np_tier=6;
+else if g3_score >= 2117 then np_tier=7;
+else if g3_score >= 2042 then np_tier=8;
+else if app_date <= "09FEB2016"d and g3_score >= 1911 then np_tier = 9;
+else if app_date >= "10FEB2016"d and app_date <="15AUG2017"d and g3_score >=1822 then np_tier=9;
+else if app_Date >= "16AUG2017"d and g3_score >=1831 then np_tier =9;
+
+end;
+
+
+else if lob='sp' then do;
+if g3_score >= 2347 then sp_tier=5;
+else if g3_score >= 2207 then sp_tier=6;
+else if g3_score >= 2117 then sp_tier=7;
+else if g3_score >= 2042 then sp_tier=8;
+else if app_date <= "09FEB2016"d and g3_score >= 1911 then sp_tier = 9;
+else if app_date >= "10FEB2016"d and app_date <="15AUG2017"d and g3_score >=1822 then sp_tier=9;
+else if app_Date >= "16AUG2017"d and g3_score >=1831 then sp_tier =9;
+
+end;
+
+else if lob='direct' then do;
+if g3_score >= 2803 and bumping_fico >= 620 then direct_tier=1;
+else if g3_score >= 2625 and bumping_fico >= 620 then direct_tier=2;
+else if g3_score >= 2517 and bumping_fico >= 620 then direct_tier=3;
+else if g3_score >= 2431 and bumping_fico >= 620 then direct_tier=4;
+else if g3_score >= 2388 then direct_tier=5;
+else if g3_score >= 2240 then direct_tier=6;
+else if g3_score >= 2078 then direct_tier=7;
+end;
+
+
+else if lob='pa' then do;
+if g3_score >= 2776 then pa_tier=1;
+else if g3_score >= 2565 then pa_tier=2;
+else if g3_score >= 2470 then pa_tier=3;
+else if g3_score >= 2389 then pa_tier=4;
+else if g3_score >= 2347 then pa_tier=5;
+else if g3_score >= 2207 then pa_tier=6;
+else if g3_score >= 2117 then pa_tier=7;
+else if g3_score >= 2042 then pa_tier=8;
+else pa_tier=9;
+end;
+
+else if lob='CarMax' then do;
+if g3_score>=2347 then cm_tier=5;
+else if g3_score>=2207 then cm_tier=6;
+else if g3_score>=2117 then cm_tier=7;
+else if g3_score>=2042 then cm_tier=8;
+else if g3_score>=1884 then cm_tier=9;
+end;
+
+
+if lob='np' then do;
+if g3_score >= 2776 then np_tier7_plus=1;
+else if g3_score >= 2565 then np_tier7_plus=2;
+else if g3_score >= 2470 then np_tier7_plus=3;
+else if g3_score >= 2389 then np_tier7_plus=4;
+else if g3_score >= 2347 then np_tier7_plus=5;
+else if g3_score >= 2207 then np_tier7_plus=6;
+else if app_date <= "09FEB2016"d and g3_score >= 1911 then np_tier7_plus = 7;
+else if app_date >= "10FEB2016"d and app_date <="15AUG2017"d and g3_score >=1822 then np_tier7_plus =7;
+else if app_Date >= "16AUG2017"d and g3_score >=1831 then np_tier7_plus =7;
+
+end;
+
+run;
+
+/g2 business tier/
+data cmf_app2.val_young_app_all;
+set cmf_app2.val_young_app_all(where=(not missing(g2_score)));
+
+length pa_tier $2.;
+
+if lob='pr' then do; /if lob_desc='Dealer_P' then do;/
+if g2_score >= 2735 then g2_pr_tier=1;
+else if g2_score >= 2525 then g2_pr_tier=2;
+else if g2_score >= 2417 then g2_pr_tier=3;
+else if g2_score >= 2330 then g2_pr_tier=4;
+else if g2_score >= 1785 then g2_pr_tier=5;
+else g2_pr_tier=.;
+end;
+
+
+else if lob='np' then do;
+if g2_score >= 2735 then g2_np_tier=1;
+else if g2_score >= 2525 then g2_np_tier=2;
+else if g2_score >= 2417 then g2_np_tier=3;
+else if g2_score >= 2330 then g2_np_tier=4;
+else if g2_score >= 2315 then g2_np_tier=5;
+else if g2_score >= 2172 then g2_np_tier=6;
+else if g2_score >= 2088 then g2_np_tier=7;
+else if g2_score >= 2025 then g2_np_tier=8;
+else if g2_score >= 1785 then g2_np_tier=9;
+else g2_np_tier=.;
+end;
+
+else if lob='sp' then do;
+if g2_score >= 2315 then g2_sp_tier=5;
+else if g2_score >= 2172 then g2_sp_tier=6;
+else if g2_score >= 2088 then g2_sp_tier=7;
+else if g2_score >= 2025 then g2_sp_tier=8;
+else if g2_score >= 1785 then g2_sp_tier=9;
+else g2_sp_tier=.;
+end;
+
+else if lob='direct' then do;
+if g2_score >= 2811 then g2_direct_tier=1;
+else if g2_score >= 2624 then g2_direct_tier=2;
+else if g2_score >= 2510 then g2_direct_tier=3;
+else if g2_score >= 2414 then g2_direct_tier=4;
+else if g2_score >= 2384 then g2_direct_tier=5;
+else if g2_score >= 2239 then g2_direct_tier=6;
+else if g2_score >= 2120 then g2_direct_tier=7;
+else g2_direct_tier=.;
+end;
+
+else if lob='pa' then do;
+if g2_score >= 2297 then g2_pa_tier=5;
+else if g2_score >= 2143 then g2_pa_tier=6;
+else if g2_score >= 2044 then g2_pa_tier=7;
+else if g2_score >= 1935 then g2_pa_tier=8;
+else g2_pa_tier=9;
+end;
+
+
+options nomprint nomlogic symbolgen=no;
+%include "/prod/user/sam/coaf/npi/masi/cmf/cmf_prod_scripts/release/scripts/chkmacroerrors.sas";
+%include "/prod/user/sam/coaf/npi/masi/cmf/cmf_prod_scripts/release/scripts/chkvars.sas";
+%include "/prod/user/sam/coaf/npi/masi/cmf/cmf_prod_scripts/release/scripts/numofwords.sas";
+%include "/prod/user/sam/coaf/npi/masi/cmf/cmf_prod_scripts/release/scripts/sortlist.sas";
+%include "/prod/user/sam/coaf/npi/masi/cmf/cmf_prod_scripts/release/scripts/autobinx.sas";
+
+/************** App level score validity by LOB* ***************/
+/options mprint mlogic symbolgen;/
+%macro prod_decile_cuts(lob,wc);
+data val_young_app_&lob.;
+set val.val_young_app_all_g2
+/*
+%if &wc. ne %then %do;
+(where=(&wc.))
+%end;
+*/
+
+(where=(%str(&wc.)))
+
+;
+run;
+
+
+%autobinx ( Indata=%str(val_young_app&lob.)
+,_InPath=%str()
+,_variables=%str(g3_score)
+,_nGroups=%str(10)
+,_bandtxt=%str(decile)
+,_autowc=%str(tranche="&start_qrt.")
+,OutData=%str(val_young_app&lob._decile)
+,_OutPath=%str(&cmf_app_path.)
+,SumDS=%str(app&lob._autobin_summry_g3)
+,_SumDSPath=%str(&cmf_app_path.)
+,_partBinFlag=%str(1)
+,_weightflag=%str(1)
+,_weightvar=%str(weight)
+,_desc=%str(0)
+);
+
+data cmf_app.val_young_app_&lob.decile(rename=(g3_score_decile=decile));
+set cmf_app.val_young_app&lob._decile;
+run;
+
+
+%autobinx ( Indata=%str(val_young_app&lob._decile)
+,_InPath=%str(&cmf_app_path.)
+,_variables=%str(g2_score)
+,_nGroups=%str(10)
+,_bandtxt=%str(decile)
+,_autowc=%str(tranche="&start_qrt.")
+,OutData=%str(val_young_app&lob._decile2)
+,_OutPath=%str(&cmf_app_path.)
+,SumDS=%str(app&lob._autobin_summry_g2)
+,_SumDSPath=%str(&cmf_app_path.)
+,_partBinFlag=%str(1)
+,_weightflag=%str(1)
+,_weightvar=%str(weight)
+,_desc=%str(0)
+);
+
+data cmf_app.val_young_app_&lob.decile2(rename=(g2_score_decile=decile2));
+set cmf_app.val_young_app&lob._decile2;
+scorecard2='G2';
+run;
+%mend;
+
+
+%prod_decile_cuts(all,%str(not missing(g2_score)))
+%prod_decile_cuts(sp,%str(lob eq 'sp' and not missing(g2_score)))
+%prod_decile_cuts(pr,%str(lob eq 'pr' and not missing(g2_score)))
+%prod_decile_cuts(np,%str(lob eq 'np' and not missing(g2_score)))
+%prod_decile_cuts(CarMax,%str(lob eq 'CarMax' and not missing(g2_score)))
+%prod_decile_cuts(pa,%str(lob eq 'pa' and not missing(g2_score)))
+%prod_decile_cuts(direct,%str(lob eq 'direct' and not missing(g2_score)))
