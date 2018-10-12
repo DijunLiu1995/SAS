@@ -38,9 +38,14 @@ quit;
 
 %macro append_data;
 %do i = 2 %to 10;
-	proc append base=File1_sheet4 data=&&File&i.._sheet4 force;
+	proc append base=File1_sheet4 data=File&i._sheet4 force;
 	run;
 %end;
 %mend append_data;
 
 %append_data;
+
+proc export data=File1_sheet4 outfile="/folders/myshortcuts/myfolder/All_Sheet4.csv"
+dbms=csv
+replace;
+run;
