@@ -1,0 +1,9 @@
+(close-open)/open
+Close Ret=(closeof 1520 - close of 950)/close of 950- recorded on Nov 7
+
+open ret =(open 950 - close prev day close 1520)/close prev day 1520 recorded o Nov 7
+
+dont depend on the opening and closing time check for last and first records based on dates
+
+cols:
+date, close ret,Open Ret
