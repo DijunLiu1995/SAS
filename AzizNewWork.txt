@@ -7,3 +7,49 @@ dont depend on the opening and closing time check for last and first records bas
 
 cols:
 date, close ret,Open Ret
+
+
+ OPTIONS NONOTES NOSTIMER NOSOURCE NOSYNTAXCHECK;
+ FILENAME REFFILE '/folders/myshortcuts/myfolder/Intraday.dta';
+ PROC IMPORT DATAFILE=REFFILE
+ DBMS=DTA
+ OUT=WORK.IMPORT;
+ RUN;
+
+DATA IMPORT;
+SET IMPORT;
+date_int=input(date,mmddyy10.);
+run;
+
+
+
+proc sort data =work.import; by date_int;
+run;
+
+
+data new(keep= date_int close_ret open_ret);
+set import;
+by date_int;
+format date_int mmddyy10.;
+retain close_of_0950 0;
+retain prev_day_close_1520 0;
+retain open_at_950 0;
+retain close_of_1520 0;
+if (first.date_int) then
+do;
+close_of_0950=close;
+prev_day_close_1520=close_of_1520;
+open_at_950=open;
+end;
+if last.date_int  then
+do;
+close_of_1520=close;
+close_ret=(close_of_1520 - close_of_0950)/close_of_0950;
+open_ret=(open_at_950 - prev_day_close_1520)/prev_day_close_1520;
+put close_of_0950 close_of_1520 open_at_950 prev_day_close_1520 date;
+end;
+if last.date_int  and date_int ne 9806 then
+do;
+ output;
+end;
+run;
