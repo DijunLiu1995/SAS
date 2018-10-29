@@ -5,6 +5,16 @@ open ret =(open 950 - close prev day close 1520)/close prev day 1520 recorded o 
 
 dont depend on the opening and closing time check for last and first records based on dates
 
+
+open ret= (open @9.30 today - close @16.00 on the prev day)/close @16.00 on the prev day
+
+difference=(open @9.30 today - close @16.00 on the prev day)
+
+close ret=( open @16.00 today - close @9.30 today)/close @9.30 today
+
+From Dec, 21st 2004
+
+
 cols:
 date, close ret,Open Ret
 
