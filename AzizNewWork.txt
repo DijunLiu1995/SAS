@@ -63,3 +63,103 @@ do;
  output;
 end;
 run;
+
+/**/
+ OPTIONS NONOTES NOSTIMER NOSOURCE NOSYNTAXCHECK;
+ FILENAME REFFILE '/folders/myshortcuts/myfolder/Intraday.dta';
+ /*above path should be changed as per your local machine folder*/
+ PROC IMPORT DATAFILE=REFFILE
+ DBMS=DTA
+ OUT=WORK.IMPORT;
+ RUN;
+
+DATA IMPORT;
+SET IMPORT;
+date_int=input(date,mmddyy10.);
+run;
+
+data sub_1;
+set import;
+where date_int < '31dec2004'd;
+run;
+
+data sub_2;
+set import;
+where date_int >= '31dec2004'd;
+run;
+
+
+proc sort data =work.sub_1; by date_int;
+run;
+
+proc sort data =work.sub_2; by date_int;
+run;
+
+
+data new_1(keep= date_int close_ret open_ret);
+set sub_1;
+by date_int;
+format date_int mmddyy10.;
+retain close_of_0950 0;
+retain prev_day_close_1520 0;
+retain open_at_950 0;
+retain close_of_1520 0;
+if (first.date_int) then
+do;
+close_of_0950=close;
+prev_day_close_1520=close_of_1520;
+open_at_950=open;
+end;
+if last.date_int  then
+do;
+close_of_1520=close;
+close_ret=(close_of_1520 - close_of_0950)/close_of_0950;
+open_ret=(open_at_950 - prev_day_close_1520)/prev_day_close_1520;
+put close_of_0950 close_of_1520 open_at_950 prev_day_close_1520 date;
+end;
+if last.date_int  and date_int ne 9806 then
+do;
+ output;
+end;
+run;
+
+data sub_2;
+set sub_2;
+where time between 930 and 1600;
+run;
+
+data new_2(keep= date_int difference close_ret open_ret);
+set sub_2;
+by date_int;
+format date_int mmddyy10.;
+retain close_of_0930 0;
+retain prev_day_close_1600 0;
+retain open_at_930 0;
+retain close_of_1600 0;
+if (first.date_int) then
+do;
+close_of_0930=close;
+prev_day_close_1600=close_of_1600;
+open_at_930=open;
+end;
+if last.date_int  then
+do;
+close_of_1600=close;
+open_of_1600=open;
+close_ret=(open_of_1600 - close_of_0930)/close_of_0930;
+open_ret=(open_at_930 - prev_day_close_1600)/prev_day_close_1600;
+difference=(open_at_930 - prev_day_close_1600);
+put close_of_0930 close_of_1600 open_at_930 prev_day_close_1600 difference date;
+end;
+if last.date_int  and date_int ne 16439 then
+do;
+ output;
+end;
+run;
+
+
+
+
+/*In below export step give the path of the location where you want to have the file*/
+/* proc export data=work.new outfile="E:\SAS\Final.xlsx" dbms=xlsx replace; */
+/* run; */
